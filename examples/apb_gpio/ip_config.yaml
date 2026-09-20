@@ -1,0 +1,79 @@
+# =============================================================================
+# ip_config.yaml — the single declarative source of truth for one IP.
+#
+# This is the PILOT: an APB register-heavy GPIO + timer peripheral. Copy this
+# file to ips/<name>/ip_config.yaml and edit it to re-target the flow to any IP.
+# Validate with:  python flow/scripts/validate_config.py ips/<name>/ip_config.yaml
+# =============================================================================
+
+ip:
+  name: apb_gpio                       # module base name (a-z, 0-9, _)
+  display_name: "APB GPIO + Timer"
+  version: "0.1.0"
+  description: >
+    A 32-bit APB4 subordinate peripheral providing general-purpose I/O with
+    per-pin direction control, output data, input sampling, interrupt-on-change,
+    and a free-running 32-bit timer with a programmable compare/interrupt.
+  owner: "DV Lead"
+
+clocks:
+  - name: pclk
+    freq_mhz: 100
+    description: "APB bus clock; single clock domain for the whole IP."
+
+resets:
+  - name: presetn
+    active_level: low
+    sync: async_assert_sync_deassert
+    clock: pclk
+
+bus:
+  protocol: apb4                       # apb | apb4 | axi4-lite | axi4 | ahb-lite | wishbone | tilelink-ul
+  data_width: 32
+  addr_width: 12                       # 4 KB register space
+  clock: pclk
+  reset: presetn
+  role: subordinate
+
+# The register map is authored in SystemRDL and is the source of truth for
+# RTL (PeakRDL-regblock), UVM RAL (PeakRDL-uvm), and docs (PeakRDL-html).
+registers:
+  source: rdl/apb_gpio.rdl
+  format: systemrdl
+  top_component: apb_gpio
+
+# Non-bus side interfaces. Each maps to a reusable agent from vip/.
+interfaces:
+  - name: gpio
+    kind: gpio
+    direction: inout
+    width: 32
+    has_vip: true
+    description: "32 bidirectional GPIO pads with per-pin direction control."
+
+interrupts:
+  - name: irq
+    level: high
+    type: level
+    description: "Combined interrupt: GPIO change and/or timer compare."
+
+verification:
+  tracks: [sv-uvm]                     # single-track: standard SystemVerilog UVM only
+  coverage_goal_pct: 100
+  primary_simulator: xsim              # AMD Vivado xsim — full UVM sign-off simulator
+  uvm_version: "1.2"                   # xsim built-in UVM; bump to 2020 to compile Accellera uvm-core
+  regression:
+    seeds: 20
+    random_tests: 10
+  key_scenarios:
+    - "Write/read every register field and check reset values."
+    - "Drive each GPIO as input; verify input register sampling and interrupt-on-change."
+    - "Configure each GPIO as output; verify pad drive and direction control."
+    - "Program the timer compare; verify counter rollover and compare interrupt."
+    - "Back-to-back APB transfers with wait states; verify PREADY/PSLVERR behavior."
+    - "Illegal/reserved address access; verify error response."
+
+traceability:
+  req_prefix: REQ
+  spec_prefix: SPEC
+  vplan_prefix: VP

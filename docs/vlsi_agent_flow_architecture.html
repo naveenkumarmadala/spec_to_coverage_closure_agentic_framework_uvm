@@ -1,0 +1,739 @@
+<title>VLSI Agent Pipeline</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg:#F5F6F2; --surface:#FFFFFF; --surface-alt:#EDEFE9; --panel:#F0F2ED;
+    --ink:#131A19; --ink-soft:#47524F; --ink-faint:#6C7672;
+    --border:#D8DDD3; --border-strong:#C3CABB;
+    --accent:#1F6F5C; --accent-soft:#E4EEE9; --accent-ink:#0E4A3C;
+    --warn:#B5502E; --warn-soft:#F5E4DC; --warn-ink:#7A3720;
+    --info:#3B5166; --info-soft:#E3E8ED; --info-ink:#243440;
+    --shadow: 0 1px 2px rgba(19,26,25,.06), 0 4px 14px rgba(19,26,25,.05);
+
+    /* section-family palette — one hue per thematic cluster of sections */
+    --f-build:#1F6F5C;    --f-build-soft:#E4EEE9;    --f-build-ink:#0E4A3C;
+    --f-spec:#33518F;     --f-spec-soft:#E4E8F3;     --f-spec-ink:#1E3567;
+    --f-silicon:#96650F;  --f-silicon-soft:#F3EAD7;  --f-silicon-ink:#63430A;
+    --f-verify:#6C4A9C;   --f-verify-soft:#EEE6F6;   --f-verify-ink:#4A2F70;
+    --f-info:#3B5166;     --f-info-soft:#E3E8ED;     --f-info-ink:#243440;
+    --f-warn:#B5502E;     --f-warn-soft:#F5E4DC;     --f-warn-ink:#7A3720;
+    --wash-a:rgba(31,111,92,.11); --wash-b:rgba(108,74,156,.09); --wash-c:rgba(150,101,15,.09);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F1513; --surface:#161D1B; --surface-alt:#1B2321; --panel:#141B19;
+      --ink:#E7ECE9; --ink-soft:#A8B3AF; --ink-faint:#7C8985;
+      --border:#2B3532; --border-strong:#3A4642;
+      --accent:#4FBFA0; --accent-soft:#1B322B; --accent-ink:#8FE0C6;
+      --warn:#E08A63; --warn-soft:#3A241A; --warn-ink:#F0B79A;
+      --info:#7FA0BE; --info-soft:#1E2A35; --info-ink:#BFD4E5;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 20px rgba(0,0,0,.25);
+
+      --f-build:#4FBFA0;   --f-build-soft:#1B322B;   --f-build-ink:#8FE0C6;
+      --f-spec:#8CA4E0;    --f-spec-soft:#1E2740;    --f-spec-ink:#C3D2F2;
+      --f-silicon:#D9A94B; --f-silicon-soft:#3A2E14; --f-silicon-ink:#F0CE8A;
+      --f-verify:#BB9CE6;  --f-verify-soft:#2B2140;  --f-verify-ink:#DECBF7;
+      --f-info:#7FA0BE;    --f-info-soft:#1E2A35;    --f-info-ink:#BFD4E5;
+      --f-warn:#E08A63;    --f-warn-soft:#3A241A;    --f-warn-ink:#F0B79A;
+      --wash-a:rgba(79,191,160,.16); --wash-b:rgba(187,156,230,.13); --wash-c:rgba(217,169,75,.11);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F1513; --surface:#161D1B; --surface-alt:#1B2321; --panel:#141B19;
+    --ink:#E7ECE9; --ink-soft:#A8B3AF; --ink-faint:#7C8985;
+    --border:#2B3532; --border-strong:#3A4642;
+    --accent:#4FBFA0; --accent-soft:#1B322B; --accent-ink:#8FE0C6;
+    --warn:#E08A63; --warn-soft:#3A241A; --warn-ink:#F0B79A;
+    --info:#7FA0BE; --info-soft:#1E2A35; --info-ink:#BFD4E5;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 20px rgba(0,0,0,.25);
+
+    --f-build:#4FBFA0;   --f-build-soft:#1B322B;   --f-build-ink:#8FE0C6;
+    --f-spec:#8CA4E0;    --f-spec-soft:#1E2740;    --f-spec-ink:#C3D2F2;
+    --f-silicon:#D9A94B; --f-silicon-soft:#3A2E14; --f-silicon-ink:#F0CE8A;
+    --f-verify:#BB9CE6;  --f-verify-soft:#2B2140;  --f-verify-ink:#DECBF7;
+    --f-info:#7FA0BE;    --f-info-soft:#1E2A35;    --f-info-ink:#BFD4E5;
+    --f-warn:#E08A63;    --f-warn-soft:#3A241A;    --f-warn-ink:#F0B79A;
+    --wash-a:rgba(79,191,160,.16); --wash-b:rgba(187,156,230,.13); --wash-c:rgba(217,169,75,.11);
+  }
+
+  /* Per-section theme: overriding --accent/--soft/--ink locally recolors every
+     component that already reads those three variables (sec-num, heading,
+     rule chips, checkpoints, example callouts, panel spine) — one hook, whole
+     section recolors. Diagram node colors are intentionally NOT touched here:
+     the legend (exec/dispatch/script/decision/pass/fail) must mean the same
+     thing in every diagram regardless of which section it's in. */
+  section.th-build   {--accent:var(--f-build);   --accent-soft:var(--f-build-soft);   --accent-ink:var(--f-build-ink);}
+  section.th-spec    {--accent:var(--f-spec);    --accent-soft:var(--f-spec-soft);    --accent-ink:var(--f-spec-ink);}
+  section.th-silicon {--accent:var(--f-silicon); --accent-soft:var(--f-silicon-soft); --accent-ink:var(--f-silicon-ink);}
+  section.th-verify  {--accent:var(--f-verify);  --accent-soft:var(--f-verify-soft);  --accent-ink:var(--f-verify-ink);}
+  section.th-info    {--accent:var(--f-info);    --accent-soft:var(--f-info-soft);    --accent-ink:var(--f-info-ink);}
+  section.th-warn    {--accent:var(--f-warn);    --accent-soft:var(--f-warn-soft);    --accent-ink:var(--f-warn-ink);}
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding:0 24px 96px;}
+
+  h1,h2,h3{
+    font-family:"IBM Plex Sans Condensed","Arial Narrow",sans-serif;
+    font-weight:700; text-wrap:balance; color:var(--ink); letter-spacing:.2px;
+  }
+  code, .mono, .tag, table{font-variant-numeric:tabular-nums;}
+  code, .mono, .tag{font-family:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;}
+
+  /* ---- header ---- */
+  header.hero{
+    padding:60px 24px 32px; margin:0 -24px 36px; border-radius:0 0 16px 16px;
+    background:
+      radial-gradient(circle at 12% 8%, var(--wash-a), transparent 42%),
+      radial-gradient(circle at 88% -6%, var(--wash-b), transparent 46%),
+      radial-gradient(circle at 55% 105%, var(--wash-c), transparent 50%),
+      var(--bg);
+    border-bottom:1px solid var(--border);
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:12.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--f-build-ink); background:var(--f-build-soft);
+    display:inline-block; padding:4px 10px; border-radius:3px; margin-bottom:16px;
+  }
+  h1.title{font-size:42px; line-height:1.08; margin:0 0 10px;
+    background:linear-gradient(100deg, var(--f-build) 0%, var(--f-verify) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;}
+  p.subtitle{font-size:17px; color:var(--ink-soft); max-width:640px; margin:0 0 28px;}
+  .stat-row{display:flex; gap:12px; flex-wrap:wrap;}
+  .stat{flex:1 1 140px; padding:16px 18px 14px; border-radius:8px; background:var(--surface);
+    border:1px solid var(--border); border-top:3px solid var(--stat-c, var(--f-build));
+    box-shadow:var(--shadow);}
+  .stat:nth-child(1){--stat-c:var(--f-build);}
+  .stat:nth-child(2){--stat-c:var(--f-spec);}
+  .stat:nth-child(3){--stat-c:var(--f-silicon);}
+  .stat:nth-child(4){--stat-c:var(--f-verify);}
+  .stat:nth-child(5){--stat-c:var(--f-info);}
+  .stat:nth-child(6){--stat-c:var(--f-warn);}
+  .stat .n{font-family:"IBM Plex Mono",monospace; font-size:22px; font-weight:600; color:var(--stat-c, var(--f-build)); display:block;}
+  .stat .l{font-size:12px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.06em;}
+
+  /* ---- legend ---- */
+  .legend{display:flex; flex-wrap:wrap; gap:10px 18px; margin:22px 0 0; padding:16px 18px;
+    background:var(--surface); border:1px solid var(--border); border-radius:6px;}
+  .legend .item{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft);}
+  .swatch{width:14px; height:14px; border-radius:3px; flex:none; display:inline-block;}
+  .swatch.exec{background:var(--accent);}
+  .swatch.dispatch{background:var(--info);}
+  .swatch.script{background:var(--surface-alt); border:1.5px dashed var(--accent);}
+  .swatch.pass{background:var(--accent); border-radius:50%;}
+  .swatch.fail{background:var(--warn); border-radius:50%;}
+  .swatch.decision{background:var(--info-soft); border:1.5px solid var(--info); transform:rotate(45deg); border-radius:2px;}
+  .swatch.disk{background:none; border:1.5px solid var(--ink-faint); border-radius:1px;}
+
+  /* ---- nav strip ---- */
+  nav.toc{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; margin:28px 0 8px;
+    padding:14px 18px; background:var(--surface-alt); border-radius:6px; border:1px solid var(--border);}
+  nav.toc a{color:var(--ink-soft); text-decoration:none; white-space:nowrap;}
+  nav.toc a:hover{color:var(--accent-ink); text-decoration:underline;}
+  nav.toc span.sep{color:var(--border-strong);}
+
+  /* ---- sections ---- */
+  section{margin:64px 0;}
+  .sec-head{display:flex; align-items:center; gap:14px; border-bottom:2px solid var(--accent); padding-bottom:12px; margin-bottom:22px;}
+  .sec-num{
+    font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600; letter-spacing:.02em;
+    color:#fff; background:var(--accent); border-radius:6px; padding:5px 10px; flex:none;
+  }
+  .sec-head h2{font-size:26px; margin:0; color:var(--accent-ink);}
+  .sec-sub{color:var(--ink-faint); font-size:14px; margin:-14px 0 20px; font-style:italic;}
+
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-top:4px solid var(--accent);
+    border-radius:8px; padding:22px 22px 16px; margin-bottom:22px; box-shadow:var(--shadow);
+  }
+  .panel .mermaid{background:transparent;}
+
+  /* ---- rule callouts ---- */
+  ul.rules{list-style:none; margin:0 0 4px; padding:0; display:grid; gap:8px;}
+  ul.rules li{
+    display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start;
+    background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent);
+    border-radius:0 6px 6px 0; padding:9px 14px; font-size:14px; color:var(--ink-soft);
+  }
+  ul.rules li .rid{
+    font-family:"IBM Plex Mono",monospace; font-weight:600; color:var(--accent-ink);
+    background:var(--accent-soft); padding:2px 7px; border-radius:3px; font-size:12.5px; white-space:nowrap;
+  }
+  .steer{font-size:13px; color:var(--ink-faint); margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);}
+  .steer .rid{color:var(--info-ink); background:var(--info-soft);}
+
+  .example{
+    margin-top:16px; padding:12px 16px; border-radius:6px; background:var(--accent-soft);
+    border:1px solid var(--border); font-size:13.5px; color:var(--ink);
+  }
+  .example b{color:var(--accent-ink);}
+
+  /* ---- numbered walkthrough ---- */
+  ol.steps{list-style:none; counter-reset:step; margin:0 0 4px; padding:0; display:grid; gap:10px;}
+  ol.steps li{
+    counter-increment:step; position:relative; padding:12px 16px 12px 52px;
+    background:var(--surface); border:1px solid var(--border); border-radius:8px;
+    font-size:14px; color:var(--ink-soft);
+  }
+  ol.steps li::before{
+    content:counter(step); position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff;
+    font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:13px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  ol.steps code{color:var(--accent-ink);}
+
+  /* ---- checkpoint ---- */
+  .checkpoint{
+    display:flex; align-items:center; gap:10px; margin:16px 0 0; padding:12px 16px;
+    background:var(--accent); color:#fff; border-radius:6px; font-weight:600; font-size:14px;
+  }
+  .checkpoint .mark{font-family:"IBM Plex Mono",monospace; font-size:15px;}
+
+  /* ---- tables ---- */
+  .tbl-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:8px; background:var(--surface);}
+  table{width:100%; border-collapse:collapse; font-size:13.5px; min-width:560px;}
+  thead th{
+    text-align:left; font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--accent-ink); background:var(--accent-soft);
+    padding:10px 14px; border-bottom:2px solid var(--accent); white-space:nowrap;
+  }
+  tbody td{padding:10px 14px; border-bottom:1px solid var(--border); color:var(--ink-soft); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--surface-alt);}
+  td.num, th.num{font-family:"IBM Plex Mono",monospace; text-align:right; color:var(--ink);}
+  td.rid{font-family:"IBM Plex Mono",monospace; color:var(--accent-ink); font-weight:600;}
+  .pill{display:inline-block; padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:600;
+    font-family:"IBM Plex Mono",monospace;}
+  .pill.p0{background:var(--warn-soft); color:var(--warn-ink);}
+  .pill.p1{background:var(--info-soft); color:var(--info-ink);}
+  .pill.p2{background:var(--accent-soft); color:var(--accent-ink);}
+  .pill.p3{background:var(--surface-alt); color:var(--ink-faint);}
+
+  .two-col{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media (max-width:720px){.two-col{grid-template-columns:1fr;}}
+
+  footer{margin-top:70px; padding-top:22px; border-top:1px solid var(--border);
+    color:var(--ink-faint); font-size:12.5px;}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <span class="eyebrow">Architecture &amp; Execution Data Flow</span>
+  <h1 class="title">VLSI Agent Pipeline</h1>
+  <p class="subtitle">How the front-end VLSI agentic framework carries an IP from a requirement
+    document to coverage closure — every stage, every gate, every rule that governs it — with one
+    verification methodology, standard SystemVerilog UVM, run on AMD Vivado xsim. Illustrated against
+    the reference IP: PMTPC-4, a 4-channel timer/PWM controller.</p>
+  <div class="stat-row">
+    <div class="stat"><span class="n">13</span><span class="l">Agents</span></div>
+    <div class="stat"><span class="n">12</span><span class="l">Skills</span></div>
+    <div class="stat"><span class="n">11</span><span class="l">Commands</span></div>
+    <div class="stat"><span class="n">1</span><span class="l">UVM track (SV/UVM)</span></div>
+    <div class="stat"><span class="n">xsim</span><span class="l">Free UVM simulator</span></div>
+    <div class="stat"><span class="n">4</span><span class="l">Real RTL bugs caught</span></div>
+  </div>
+  <div class="legend">
+    <span class="item"><span class="swatch exec"></span>Agent executes directly</span>
+    <span class="item"><span class="swatch dispatch"></span>Orchestrator hands off to agent</span>
+    <span class="item"><span class="swatch script"></span>Script / tool runs</span>
+    <span class="item"><span class="swatch decision"></span>Decision / gate</span>
+    <span class="item"><span class="swatch pass"></span>Pass / checkpoint</span>
+    <span class="item"><span class="swatch fail"></span>Fail / loop back</span>
+    <span class="item"><span class="swatch disk"></span>Artifact on disk</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#architecture">1 · System architecture</a><span class="sep">/</span>
+  <a href="#p0">2 · Ingest &amp; confirm</a><span class="sep">/</span>
+  <a href="#p1">3 · Spec</a><span class="sep">/</span>
+  <a href="#p2">4 · Registers, RTL &amp; static gate</a><span class="sep">/</span>
+  <a href="#p3">5 · vPlan &amp; UVM env</a><span class="sep">/</span>
+  <a href="#p3a">5a · How a cycle gets checked</a><span class="sep">/</span>
+  <a href="#p4">6 · Test authoring</a><span class="sep">/</span>
+  <a href="#p5">7 · Coverage closure loop</a><span class="sep">/</span>
+  <a href="#p6">8 · Independent review</a><span class="sep">/</span>
+  <a href="#signoff">9 · Signoff</a><span class="sep">/</span>
+  <a href="#lessons">10 · Lessons learned</a><span class="sep">/</span>
+  <a href="#results">11 · Key results</a><span class="sep">/</span>
+  <a href="#effort">12 · Human vs. agent effort</a><span class="sep">/</span>
+  <a href="#future">13 · Future improvements</a>
+</nav>
+
+<!-- ============================================================ -->
+<section id="architecture" class="th-build">
+  <div class="sec-head"><span class="sec-num">01</span><h2>System Architecture</h2></div>
+  <p class="sec-sub">One orchestrator, thirteen specialists, one verification environment, and an independent review fork.</p>
+
+  <div class="panel">
+<pre class="mermaid">
+flowchart TB
+    U["Requirement spec doc\n(.md / .pdf / .docx) + ip_config.yaml"]:::disk
+    O["vlsi-orchestrator\nsequences 12 stages, enforces every gate"]:::exec
+    U --> O
+
+    subgraph PIPE["Stage sequence (0 -> 11)"]
+      direction LR
+      S0["0 ingest+confirm"]:::dispatch --> S1["1-2 spec"]:::dispatch --> S2["3-4 registers+RTL"]:::dispatch --> S3["5 static gate"]:::dispatch --> S4["5.5 design review"]:::dispatch --> S5["6 vPlan"]:::dispatch --> S6["7 env"]:::dispatch --> S7["8-9 tests"]:::dispatch --> S8["10 closure"]:::dispatch --> S9["11 verif. review"]:::dispatch
+    end
+    O --> PIPE
+
+    subgraph FORK1["SystemVerilog UVM env (stage 7-10)"]
+      direction LR
+      SV["dv/sv/ - one UVM env\ncompile+elab+run on Vivado xsim\n(-L uvm, -cov, -sv_seed)"]:::exec
+    end
+    PIPE -.-> FORK1
+
+    subgraph FORK2["Fork - independent review (stage 5.5 & 11)"]
+      direction LR
+      DR["design-reviewer\nspec-literal, read-only"]:::exec
+      VR["verification-reviewer\nchecker vacuity + mutation seeding"]:::exec
+    end
+    PIPE -.-> FORK2
+
+    RULES["Rules & Steering\nCLAUDE.md - ip_config schema - vip_registry.yaml\n12 skill files (durable methodology)"]:::info
+    SCRIPTS["Scripts\nflow/scripts/validate_config.py\nxsim_flow.sh (compile/elab/run)\nrun_regression.py (seed sweep + coverage)"]:::script
+    O -.governs.-> RULES
+    PIPE -.calls.-> SCRIPTS
+
+    classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff,font-weight:600;
+    classDef dispatch fill:#3B5166,stroke:#243440,color:#ffffff;
+    classDef script fill:#EDEFE9,stroke:#1F6F5C,stroke-dasharray:4 2,color:#131A19;
+    classDef info fill:#E3E8ED,stroke:#3B5166,color:#131A19;
+    classDef disk fill:#ffffff,stroke:#6C7672,color:#131A19,stroke-width:1px;
+</pre>
+  </div>
+  <p style="color:var(--ink-soft); font-size:14.5px;">Unlike a fixed hub-and-spoke coverage tool, this
+    framework spans the <em>whole</em> front-end lifecycle — the orchestrator's 12 stages are mostly
+    sequential and gated, not fanned out. There is one verification environment (standard SystemVerilog
+    UVM, run on Vivado xsim); the genuine parallel fork is the two independent review agents, each
+    running in fresh context with no stake in the changes it's checking.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="p0" class="th-spec">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Stage 0 — Ingest &amp; Confirm</h2></div>
+  <p class="sec-sub">Agent: spec-ingestor · The front door. Nothing downstream runs until a human approves.</p>
+
+  <div class="panel">
+<pre class="mermaid">
+flowchart LR
+    A["Raw requirement spec\n(any format)"]:::disk --> B["spec-ingestor\nspec-extraction skill"]:::exec
+    B --> C["ip_config.yaml (draft)\n+ requirements.draft.md\n+ provenance"]:::disk
+    C --> D{{"CONFIRMATION GATE\nuser reviews / corrects"}}:::decision
+    D -->|approved| E["validate_config.py\nchecked vs vip_registry.yaml"]:::script
+    D -->|corrections needed| B
+    E --> F["Confirmed ip_config.yaml"]:::disk
+
+    classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff;
+    classDef script fill:#EDEFE9,stroke:#1F6F5C,stroke-dasharray:4 2,color:#131A19;
+    classDef decision fill:#E3E8ED,stroke:#3B5166,color:#131A19,font-weight:600;
+    classDef disk fill:#ffffff,stroke:#6C7672,color:#131A19;
+</pre>
+  </div>
+  <ul class="rules">
+    <li><span class="rid">CLAUDE.md</span> Generic-first: nothing hardcodes an IP's details — everything reads from <code>ip_config.yaml</code>.</li>
+    <li><span class="rid">orchestrator.md</span> "The ingestion confirmation gate is mandatory." Never run design/RTL/verification on an unconfirmed, auto-extracted config.</li>
+    <li><span class="rid">spec-ingestor.md</span> Every extracted assumption is tagged in <code>provenance.needs_confirmation</code> — surfaced, never buried.</li>
+  </ul>
+  <div class="checkpoint"><span class="mark">✓</span> Confirmed config validates against schema + VIP registry</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="p1" class="th-spec">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Stage 1-2 — Requirements &amp; Design Spec</h2></div>
+  <p class="sec-sub">Agents: requirements-analyst, design-architect · Builds the root of the traceability spine.</p>
+
+  <div class="panel">
+<pre class="mermaid">
+flowchart LR
+    A["Confirmed ip_config.yaml\n+ raw spec material"]:::disk --> B["requirements-analyst\nspec-to-requirements skill"]:::exec
+    B --> C["requirements.md\nunique REQ-IDs, testable"]:::disk
+    C --> D["design-architect"]:::exec
+    D --> E["design_spec.md\nblock diagram, FSM tables,\nregister-to-function map"]:::disk
+
+    classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff;
+    classDef disk fill:#ffffff,stroke:#6C7672,color:#131A19;
+</pre>
+  </div>
+  <ul class="rules">
+    <li><span class="rid">spec-to-requirements</span> Every requirement gets a stable, atomic, testable ID — never reused or silently renumbered.</li>
+    <li><span class="rid">CLAUDE.md</span> Traceability chain begins here: <code>REQ → SPEC → REG → RTL → VPLAN → COV</code>.</li>
+  </ul>
+  <div class="example"><b>Real example — PMTPC-4:</b> 22 requirements across 6 categories (core timer/PWM,
+    interrupts, APB interface, reset/control, non-functional) — each traced all the way to a
+    covergroup bin in the final closure report.</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="p2" class="th-silicon">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Stage 3-5.5 — Registers, RTL &amp; the Static / Design Gates</h2></div>
+  <p class="sec-sub">Agents: register-designer, rtl-designer, lint-static-checker, design-reviewer · Two independent gates, not one.</p>
+
+  <div class="panel">
+<pre class="mermaid">
+flowchart TD
+    A["design_spec.md"]:::disk --> B["register-designer"]:::exec
+    B --> C["ip.rdl (SystemRDL)"]:::disk
+    C --> D["PeakRDL\nregblock RTL / UVM RAL /\nC header / HTML docs"]:::script
+    D --> E["rtl-designer"]:::exec
+    E --> F["rtl/*.sv"]:::disk
+    F --> G{{"STATIC GATE\nVerible -> Verilator -> Yosys"}}:::decision
+    G -->|FAIL, findings| E
+    G -->|PASS| H{{"DESIGN REVIEW\nspec re-derived cold,\nindependent of RTL comments"}}:::decision
+    H -->|CONFIRMED divergence| E
+    H -->|clean| I["RTL accepted"]:::disk
+
+    classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff;
+    classDef script fill:#EDEFE9,stroke:#1F6F5C,stroke-dasharray:4 2,color:#131A19;
+    classDef decision fill:#E3E8ED,stroke:#3B5166,color:#131A19,font-weight:600;
+    classDef disk fill:#ffffff,stroke:#6C7672,color:#131A19;
+</pre>
+  </div>
+  <ul class="rules">
+    <li><span class="rid">lint-static-checker.md</span> peakrdl-regblock's <code>field_combo</code> struct trips Verilator's <code>MULTIDRIVEN</code> on every IP — waived once, generically, in a shared filename-matched <code>flow/tools/verilator_waivers.vlt</code>, never per-IP.</li>
+    <li><span class="rid">rtl-designer.md</span> A bare <code>'0</code> on an unpacked <code>hwif_in</code>/<code>hwif_out</code> struct compiles under Yosys/sv2v but fails Verilator's C++ codegen — use <code>'{default:'0}</code>.</li>
+    <li><span class="rid">rtl-designer.md</span> Never start a comment with the literal word "verilator" — it's parsed as a pragma, not prose.</li>
+    <li><span class="rid">design-review skill</span> "Takes effect at the next X, not immediately" in a spec implies a shadow register latched at that event — check <em>every</em> field described that way, not just the first one implemented.</li>
+  </ul>
+  <div class="example"><b>Real example — PMTPC-4:</b> four RTL bugs shipped past the static gate before
+    being caught: a protocol phase decoded from a registered instead of combinational state (PREADY
+    one cycle late on every transfer), a skipped FSM state on periodic reload, a missing hardware-clear
+    on SOFT_RESET, and a mid-RUNNING COMPARE write applying live instead of shadowed. The design review
+    also cross-referenced the Register Spec against the Design Spec's own FSM table and confirmed a
+    fifth, initially-suspected gap (CH_EN=0 during LOAD/EXPIRED) was actually already correct — the
+    Register Spec's field description said "regardless of current state," which the Design Spec's
+    transition table alone didn't state.</div>
+  <div class="checkpoint"><span class="mark">✓</span> Verible + Verilator + Yosys clean, and design review finds no confirmed divergence</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="p3" class="th-silicon">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Stage 6-7 — Verification Plan &amp; UVM Environment</h2></div>
+  <p class="sec-sub">Agents: verification-planner, tb-architect · One SystemVerilog UVM env, built at full capability and actually run on xsim.</p>
+
+  <div class="panel">
+<pre class="mermaid">
+flowchart TD
+    A["requirements.md + design_spec.md + ip.rdl"]:::disk --> B["verification-planner\nvplan-schema skill"]:::exec
+    B --> C{{"self-check:\nevery REQ in >=1 traces_to?"}}:::decision
+    C -->|orphan found| B
+    C -->|complete| D["vplan.yaml"]:::disk
+    D --> E["tb-architect\nuvm-env-scaffold skill"]:::exec
+    E --> F["SystemVerilog UVM env\ndv/sv/ (RAL, scoreboard,\ncovergroups, SVA)"]:::exec
+    F --> H["smoke test on xsim\nxsim_flow.sh smoke"]:::script
+
+    classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff;
+    classDef script fill:#EDEFE9,stroke:#1F6F5C,stroke-dasharray:4 2,color:#131A19;
+    classDef decision fill:#E3E8ED,stroke:#3B5166,color:#131A19,font-weight:600;
+    classDef disk fill:#ffffff,stroke:#6C7672,color:#131A19;
+</pre>
+  </div>
+  <ul class="rules">
+    <li><span class="rid">vplan-schema</span> No orphan vPlan items, no requirement left untraced — checked here, before RTL/env effort is spent, not just flagged later at closure.</li>
+    <li><span class="rid">uvm-env-scaffold</span> One env, generated at full closure-grade capability, with the xsim compatibility rules baked in (filelist <code>-i</code> form; RAL block aliased + <code>new()</code>; white-box SVA bound to registered signals).</li>
+    <li><span class="rid">tb-architect.md</span> Bring up the smoke test (reset + one RAL access) and confirm it compiles, elaborates, and runs clean on xsim before elaborating the full suite.</li>
+  </ul>
+  <div class="example"><b>Real example — PMTPC-4:</b> the SV/UVM env compiles and elaborates on xsim via
+    <code>-L uvm</code> (built-in UVM 1.2) and runs the sanity + error tests green (UVM_ERROR 0,
+    scoreboard checking, 0 SVA failures). Bringing it up on a real UVM simulator immediately caught
+    four bugs the previous Python-only flow never could — a reserved-keyword task name, a RAL/DUT
+    class-name collision, a non-factory RAL block, and a white-box-SVA X-sampling issue.</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="p3a" class="th-verify">
+  <div class="sec-head"><span class="sec-num">05a</span><h2>How a Cycle Gets Checked</h2></div>
+  <p class="sec-sub">Standard SystemVerilog UVM on xsim — the components, and how they combine to check the DUT every clock.</p>
+
+  <p style="color:var(--ink-soft); font-size:14.5px; margin-top:0;">This is a conventional UVM
+    environment: a reusable protocol UVC, a layered env with RAL and a reference-model scoreboard,
+    functional coverage sampled by the monitor, and a bound SVA layer — all compiled, elaborated, and
+    run on Vivado xsim with its built-in UVM 1.2 (<code>-L uvm</code>). Native
+    <code>rand</code>/<code>constraint</code>/<code>dist</code> drive the stimulus; <code>-sv_seed</code>
+    makes each seed reproducible.</p>
+
+  <h3 style="font-size:17px; margin:22px 0 10px;">The components</h3>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>UVM component</th><th>Role</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Driver / Sequencer</td><td>Reusable APB UVC drives the bus from constrained-random <code>seq_item</code>s; the RAL runs through its reg adapter</td><td class="rid">vip/apb/sv/</td></tr>
+      <tr><td>Monitor</td><td>Samples the APB transactions and DUT outputs, publishes them on an analysis port every transfer</td><td class="rid">apb_monitor.sv</td></tr>
+      <tr><td>Reference-model scoreboard</td><td>Predicts register readback + protocol (PSLVERR, wait states) and checks the DUT against it</td><td class="rid">pmtpc4_scoreboard.sv</td></tr>
+      <tr><td>Functional covergroups</td><td>Register/config + white-box FSM covergroups, sampled by the monitor/scoreboard from a signal it just checked</td><td class="rid">pmtpc4_coverage.sv / sva/</td></tr>
+      <tr><td>Code coverage (stmt/branch/cond/toggle)</td><td>xsim's own RTL instrumentation via <code>xelab -cc_type sbct</code>, merged across seeds with <code>xcrg</code></td><td class="rid">xelab --cov</td></tr>
+      <tr><td>SVA protocol assertions</td><td>Bound white-box modules asserting APB handshake, PWM waveform, IRQ aggregation, freeze, reset</td><td class="rid">dv/sv/sva/*.sv</td></tr>
+      <tr><td>RAL</td><td>PeakRDL-generated <code>uvm_reg_block</code> wired via the adapter + an explicit predictor (auto-predict off)</td><td class="rid">pmtpc4_ral_pkg.sv</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="font-size:17px; margin:28px 0 10px;">Step by step: how a single cycle gets checked</h3>
+  <ol class="steps">
+    <li>A UVM sequence randomizes a <code>seq_item</code> (native <code>rand</code>/<code>constraint</code>) and sends it to the driver — e.g. a write to <code>CH0_COMPARE</code>.</li>
+    <li>The driver drives the APB bus; the monitor samples the transaction and DUT outputs (<code>prdata</code>, <code>pready</code>, <code>pslverr</code>, <code>pwm_out</code>, <code>irq</code>, <code>INT_STATUS</code>) and publishes them.</li>
+    <li>The scoreboard/RAL predictor independently computes what those signals <em>should</em> be from the spec/RAL model — not from the RTL — and compares, signal by signal.</li>
+    <li>The bound SVA layer checks cycle-accurate relationships continuously (handshake timing, waveform rule, freeze, valid-state) in parallel with the transaction checks.</li>
+    <li><strong>Coverage is sampled only from a signal that was just checked</strong> — by the monitor/scoreboard, never by a test calling <code>.sample()</code>. Coverage is a side effect of a passing check, not an independent claim.</li>
+    <li><code>run_regression.py</code> repeats this across every test × N seeds (<code>-sv_seed</code>), collecting functional + code coverage per run.</li>
+    <li><code>coverage-closure</code> merges the databases with <code>xcrg</code>, triages every unhit bin (add stimulus, waive with a structural reason, or file as a bug), and loops to the goal.</li>
+    <li><code>verification-reviewer</code> then <strong>deliberately seeds a bug</strong> (e.g. a flipped comparison), reruns, and confirms the checks actually fail — proof the scoreboard/SVA isn't decorative — then reverts.</li>
+  </ol>
+
+  <div class="example"><b>xsim gotcha, from the real bring-up:</b> a white-box channel assertion fired
+    every clock even though <code>state_o</code> was correct — xsim samples the <em>preponed</em> value
+    of a continuous-assign net (<code>assign state_o = state;</code>) as X. The fix is to bind the SVA
+    to the registered <code>state</code> reg, not its combinational alias. This class of
+    simulator-specific lesson is exactly what a real UVM sim surfaces and a generated-but-never-run env
+    hides.</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="p4" class="th-verify">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Stage 8-9 — Test Authoring</h2></div>
+  <p class="sec-sub">Agent: test-writer · The single most important rule in the whole pipeline lives here.</p>
+
+  <div class="panel">
+<pre class="mermaid">
+flowchart LR
+    A["vplan.yaml + envs"]:::disk --> B["test-writer"]:::exec
+    B --> C["directed + constrained-random tests\ncovergroups wired to vPlan IDs"]:::disk
+    C --> D{{"does a TEST call\nthe coverage API directly?"}}:::decision
+    D -->|yes| E["FORBIDDEN\nredirect: fix why the monitor\nisn't observing the scenario"]:::fail
+    D -->|no - monitor samples it| F["RAL / register verification\nmilestone"]:::exec
+    F --> G["Functional tests"]:::disk
+
+    classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff;
+    classDef decision fill:#E3E8ED,stroke:#3B5166,color:#131A19,font-weight:600;
+    classDef fail fill:#B5502E,stroke:#7A3720,color:#ffffff;
+    classDef disk fill:#ffffff,stroke:#6C7672,color:#131A19;
+</pre>
+  </div>
+  <ul class="rules">
+    <li><span class="rid">test-writer.md</span> Coverage may only be sampled by the monitor/scoreboard, from a signal it just checked — never by test/sequence code calling <code>.sample()</code> directly. A test's job is to <em>create</em> a scenario, never to declare it covered.</li>
+    <li><span class="rid">test-writer.md</span> Every test maps to ≥1 vPlan ID; self-checking against the scoreboard/RAL, never eyeballing waveforms.</li>
+  </ul>
+  <div class="example"><b>Hard-won rule:</b> an environment can reach "100%" functional coverage while
+    checking almost nothing — if tests call the coverage API directly to mark bins covered, disconnected
+    from any signal actually observed. Coverage must be sampled only by the monitor/scoreboard, from a
+    signal it just checked. This is why <code>test-writer.md</code> states the rule explicitly instead
+    of leaving it implied — the single most important discipline in the pipeline.</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="p5" class="th-info">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Stage 10 — Coverage Closure Loop</h2></div>
+  <p class="sec-sub">Agent: coverage-closure · Regress, merge, triage, iterate — until the number is real.</p>
+
+  <div class="panel">
+<pre class="mermaid">
+flowchart TD
+    START(["Iteration start"]):::exec --> S1["STEP 1 - Regress\nN seeds on xsim\n(run_regression.py)"]:::script
+    S1 --> S2["STEP 2 - Merge\nfunctional + code coverage\n(xcrg)"]:::script
+    S2 --> S3{{"STEP 3 - Triage each hole"}}:::decision
+    S3 -->|reachable| S3a["add directed stimulus\n-> test-writer"]:::exec
+    S3 -->|unreachable by construction| S3b["justified waiver\nmatched by rule, not name"]:::exec
+    S3 -->|spec/RTL bug| S3c["file back with evidence\n-> rtl-designer"]:::exec
+    S3a --> S4
+    S3b --> S4
+    S3c --> S4
+    S4{{"STEP 4 - Decision:\ngoal met AND every REQ traced?"}}:::decision
+    S4 -->|no| START
+    S4 -->|yes| SIGNOFF["Ready for independent review"]:::pass
+
+    classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff;
+    classDef script fill:#EDEFE9,stroke:#1F6F5C,stroke-dasharray:4 2,color:#131A19;
+    classDef decision fill:#E3E8ED,stroke:#3B5166,color:#131A19,font-weight:600;
+    classDef pass fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff,font-weight:600;
+</pre>
+  </div>
+  <ul class="rules">
+    <li><span class="rid">coverage-triage</span> Classify every hole: reachable → stimulus, unreachable → justified waiver, bug → file back with evidence. Never silently drop one.</li>
+    <li><span class="rid">coverage-closure.md</span> "100% functional coverage with failing/absent checks is not closure" — pass/fail and coverage must both be green, and the scoreboard must actually be checking.</li>
+    <li><span class="rid">verification-review skill</span> Waivers matched by rule/pattern, never a hand-maintained allow-list of point names — a pattern keeps catching new holes; a name list silently stops.</li>
+  </ul>
+  <div class="example"><b>On PMTPC-4:</b> the loop runs on xsim via <code>run_regression.py</code> (every
+    test × N seeds) with <code>xcrg</code>-merged functional + code coverage. Four real RTL design bugs
+    were found and fixed while verifying this IP (PREADY timing, skipped LOAD state, missing
+    SOFT_RESET clear, live-vs-shadow COMPARE) — closure is about finding those, not just filling bins.
+    xsim does not report <em>assertion</em> coverage, so assertion evidence rolls up as pass/fail plus
+    SVA <code>cover</code>.</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="p6" class="th-verify">
+  <div class="sec-head"><span class="sec-num">08</span><h2>Stage 11 — Independent Review</h2></div>
+  <p class="sec-sub">Agents: design-reviewer, verification-reviewer · Fresh context, no stake in the changes just made.</p>
+
+  <div class="panel">
+<pre class="mermaid">
+flowchart TD
+    A["Closure output\n(RTL + reports/coverage_summary.md)"]:::disk --> B["design-reviewer"]:::exec
+    A --> C["verification-reviewer"]:::exec
+    B --> D["re-derive expected behavior\nfrom spec, cold - compare to RTL"]:::exec
+    C --> E["checker vacuity check +\nMUTATION SPOT-CHECK:\nseed bug -> rerun -> confirm FAIL -> revert"]:::exec
+    D --> F{{"any CONFIRMED finding?"}}:::decision
+    E --> F
+    F -->|yes| G["back to owning agent\nwith exact evidence"]:::fail
+    F -->|no| H["Signoff-ready"]:::pass
+
+    classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff;
+    classDef decision fill:#E3E8ED,stroke:#3B5166,color:#131A19,font-weight:600;
+    classDef fail fill:#B5502E,stroke:#7A3720,color:#ffffff;
+    classDef pass fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff,font-weight:600;
+    classDef disk fill:#ffffff,stroke:#6C7672,color:#131A19;
+</pre>
+  </div>
+  <ul class="rules">
+    <li><span class="rid">design-review skill</span> Rebuild the contract from the spec <em>before</em> reading the RTL — an inline comment's justification is a claim, never proof.</li>
+    <li><span class="rid">verification-review skill</span> Mutation/bug-seeding is the standard way to prove a checker works: seed an obviously-wrong change, confirm something fails, always revert immediately — never leave a seeded bug in the tree.</li>
+    <li><span class="rid">both skills</span> Report, don't fix. Reviewing and fixing in the same pass re-introduces the confirmation bias the review exists to avoid.</li>
+  </ul>
+  <div class="example"><b>Real example — PMTPC-4:</b> the verification-reviewer seeded two deliberate bugs
+    — a comparison operator flip in the PWM channel core, and a removed write-gate in the APB error
+    decode — in two different modules. Both were caught immediately by the existing checks (one via
+    6 reference-model errors, the other at three independent layers simultaneously). Both were reverted
+    and confirmed clean via <code>git diff</code> before the full suite was re-run green.</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="signoff" class="th-build">
+  <div class="sec-head"><span class="sec-num">09</span><h2>Signoff</h2></div>
+  <p class="sec-sub">Every requirement closed, every waiver justified, every gap documented — not hidden.</p>
+
+  <div class="panel">
+<pre class="mermaid">
+flowchart LR
+    A["All gates green:\nstatic + design review +\nclosure + verification review"]:::pass
+    A --> B["reports/coverage_summary.md\nper-vPlan + per-REQ rollup"]:::disk
+    B --> C["Waiver audit\nevery waiver cites a structural reason"]:::exec
+    C --> D["Documented gaps stated plainly\n(e.g. no assertion-coverage report on xsim)"]:::exec
+    D --> E(["SIGNED OFF"]):::pass
+
+    classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff;
+    classDef pass fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff,font-weight:600;
+    classDef disk fill:#ffffff,stroke:#6C7672,color:#131A19;
+</pre>
+  </div>
+  <p class="sec-sub" style="font-style:normal;">Sign-off criteria (all required together):</p>
+  <div class="two-col">
+    <div class="checkpoint" style="background:var(--info);"><span class="mark">100%</span> functional coverage, net of justified waivers</div>
+    <div class="checkpoint"><span class="mark">100%</span> code coverage, net of justified waivers</div>
+    <div class="checkpoint" style="background:var(--info);"><span class="mark">every</span> requirement traced to a covered item</div>
+    <div class="checkpoint"><span class="mark">all</span> seeds green: UVM_ERROR 0, 0 SVA fails, scoreboard checking</div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="lessons" class="th-warn">
+  <div class="sec-head"><span class="sec-num">10</span><h2>Lessons Learned</h2></div>
+  <p class="sec-sub">Nine real discoveries from PMTPC-4's first run through the pipeline, and the permanent change each one produced.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th class="num">#</th><th>Discovery</th><th>Impact</th><th>Change made</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>Nested quoting through <code>wsl bash -lc</code> silently corrupts <code>$(...)</code> substitutions</td><td>Commands appeared to run but used empty/wrong values, with no error</td><td>Convention: write multi-step commands to a script file, never inline</td></tr>
+      <tr><td class="num">2</td><td>Verilator (even latest) can't run complete UVM — coverage collection + full-testbench sim are incomplete</td><td>SV/UVM could be authored but never actually simulated</td><td>Adopted AMD Vivado xsim (free ML Standard) as the UVM simulator; Verilator demoted to a lint/elab helper</td></tr>
+      <tr><td class="num">3</td><td><code>hwif_in = '0;</code> on an unpacked struct compiles under Yosys/sv2v, fails Verilator's C++ codegen</td><td>Static gate passed; simulation build failed</td><td>Use <code>'{default:'0}</code>; documented in <code>rtl-designer.md</code></td></tr>
+      <tr><td class="num">4</td><td>A comment starting with the word "verilator" is parsed as a pragma</td><td><code>BADVLTPRAGMA</code> compile error from plain prose</td><td>Documented as an explicit style rule</td></tr>
+      <tr><td class="num">5</td><td>First-generation coverage model sampled bins directly from test code</td><td>"100%" coverage that checked almost nothing</td><td>Rebuilt around a cycle-accurate reference model; anti-pattern rule added to <code>test-writer.md</code></td></tr>
+      <tr><td class="num">6</td><td>peakrdl-regblock's <code>field_combo</code> struct trips Verilator <code>MULTIDRIVEN</code> on every IP</td><td>Would be rediscovered per-IP</td><td>Shared, filename-matched <code>flow/tools/verilator_waivers.vlt</code></td></tr>
+      <tr><td class="num">7</td><td>On xsim, a white-box SVA bound to a combinational output alias samples X in the preponed region every clock</td><td>Valid-state assertion fired spuriously on every cycle despite correct RTL</td><td>Bind white-box SVA to the registered signal, not the <code>assign</code> alias; documented in <code>uvm-env-scaffold</code></td></tr>
+      <tr><td class="num">8</td><td>Mid-RUNNING COMPARE write applied live instead of shadowed (Design Spec §7.4)</td><td>Passed lint, elaboration, and first-pass sim</td><td>Caught only by literal spec re-read; shadow register added, model fixed to match</td></tr>
+      <tr><td class="num">9</td><td>No independent review stage existed</td><td>Coverage-closure graded its own homework</td><td><code>design-reviewer</code> / <code>verification-reviewer</code> added, validated day-one via 2 live mutation spot-checks</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section id="results" class="th-build">
+  <div class="sec-head"><span class="sec-num">11</span><h2>Key Results — PMTPC-4</h2></div>
+  <p class="sec-sub">4-channel timer/PWM controller, APB, 5 binding errata. The reference IP for the single-track SV/UVM + xsim framework.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
+    <tbody>
+      <tr><td>Verification methodology</td><td class="num">standard SystemVerilog UVM (single track)</td></tr>
+      <tr><td>Simulator</td><td class="num">AMD Vivado xsim (free ML Standard)</td></tr>
+      <tr><td>SV/UVM env on xsim</td><td class="num">compiles + elaborates + runs (-L uvm)</td></tr>
+      <tr><td>Sanity + error tests</td><td class="num">green — UVM_ERROR 0, 0 SVA fails, scoreboard checking</td></tr>
+      <tr><td>Constrained randomization</td><td class="num">native rand/constraint/dist, -sv_seed</td></tr>
+      <tr><td>Coverage</td><td class="num">functional + code via xelab -cov / xcrg merge</td></tr>
+      <tr><td>RTL design bugs found &amp; fixed</td><td class="num">4</td></tr>
+      <tr><td>xsim bring-up bugs caught &amp; fixed</td><td class="num">4 (keyword, RAL collision, RAL new, SVA X-sampling)</td></tr>
+      <tr><td>Seeded regression + coverage closure</td><td class="num">in progress on xsim</td></tr>
+      <tr><td>Assertion coverage</td><td class="num">not reported by xsim — evidence via scoreboard + SVA cover</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section id="effort" class="th-info">
+  <div class="sec-head"><span class="sec-num">12</span><h2>Human vs. Agent-Assisted Effort</h2></div>
+  <p class="sec-sub">Illustrative from this one real run — not a large-sample study, but every line below happened.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Stage</th><th>What the agent did alone</th><th>What needed the human</th></tr></thead>
+    <tbody>
+      <tr><td>Environment setup</td><td>Researched the simulator options, wrote the xsim flow-runner scripts, diagnosed the xsim compile/elab/run gotchas</td><td>Installed Vivado xsim (AMD account + ~50 GB download) and ran the <code>sudo apt</code> lines — no interactive channel reaches the agent</td></tr>
+      <tr><td>Simulator strategy</td><td>Compared Verilator / Questa Starter / xsim against the constraints, proved the SV/UVM env runs on xsim end-to-end</td><td>Set the constraints (open-source-or-free, local+headless, standard UVM) and approved the dual-track purge — a scope call</td></tr>
+      <tr><td>Coverage closure</td><td>Ran the full 25-seed regression, triaged every hole, rebuilt the coverage model, fixed 3 RTL bugs autonomously</td><td>Reviewing and accepting those 3 fixes as correct design changes</td></tr>
+      <tr><td>Spec ambiguity (COMPARE shadow)</td><td>Re-derived the correct behavior from the spec, implemented the fix, added a targeted test, re-proved closure</td><td>Flagged the ambiguity for the user's attention before it was resolved</td></tr>
+      <tr><td>Independent review</td><td>Built the review methodology from real signoff practice (OpenTitan checklist, mutation-testing literature), ran 2 live bug-seeding spot-checks end-to-end</td><td>Chose to create two review agents (design + verification) rather than one, on the user's explicit direction</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section class="th-info">
+  <div class="sec-head"><span class="sec-num">12a</span><h2>What Only Humans / Only Agents Can Do</h2></div>
+  <div class="two-col">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th colspan="2">Only humans</th></tr></thead>
+      <tbody>
+        <tr><td>Grant sudo / interactive credentials</td><td>No interactive password channel reaches the agent</td></tr>
+        <tr><td>Set simulator constraints &amp; approve the single-track direction</td><td>Cost/scope tradeoff, not a technical fact</td></tr>
+        <tr><td>Accept an agent-authored RTL bug fix as correct</td><td>Design accountability</td></tr>
+        <tr><td>Decide review-agent scope (1 vs. 2 agents)</td><td>Architectural judgment call, explicitly delegated here</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th colspan="2">Only the agent (at this speed)</th></tr></thead>
+      <tbody>
+        <tr><td>Cross-reference 3 spec documents per requirement, 22 times</td><td>Human working memory can't hold all three simultaneously</td></tr>
+        <tr><td>Run 25 full regressions + 2 live mutation experiments in one session</td><td>Would be days of human wall-clock, done in minutes of compute</td></tr>
+        <tr><td>Rebuild an entire coverage model and re-verify 245 bins stayed correct</td><td>Mechanical, exhaustive, and easy for a human to under-check under deadline</td></tr>
+        <tr><td>Diagnose an xsim preponed-sampling gotcha by printing <code>$sampled</code> vs the settled value</td><td>Requires simulator-semantics reasoning, not domain knowledge</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="future" class="th-spec">
+  <div class="sec-head"><span class="sec-num">13</span><h2>Future Improvements</h2></div>
+  <p class="sec-sub">Real gaps surfaced by this run, prioritized by what blocks the next IP.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Pri</th><th>Item</th><th>Problem today</th><th>Proposed solution</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill p0">P0</span></td><td>Finish pmtpc4 closure on xsim</td><td>Sanity + error tests green; reg/channel/irq tests have findings under triage (systematic white-box-SVA bind + real RAL/logic items)</td><td>Apply the bind-to-registered-signal fix across the SVA layer, triage the RAL items, drive the seeded regression to the coverage goal</td></tr>
+      <tr><td><span class="pill p0">P0</span></td><td>Coverage-report roll-up to REQ level</td><td><code>run_regression.py</code> merges coverage via <code>xcrg</code>, but the per-vPlan / per-REQ roll-up into <code>coverage_summary.md</code> isn't automated yet</td><td>Add <code>coverage_report.py</code> to parse the xcrg output + <code>vplan.yaml</code> and emit the per-REQ closure table</td></tr>
+      <tr><td><span class="pill p0">P0</span></td><td>Generic templated engine unbuilt</td><td><code>flow/templates/</code> is empty — today's env structure + xsim gotchas live in PMTPC-4's own files and skill prose</td><td>Promote the proven patterns into <code>flow/templates/</code> so the next IP gets a runnable xsim UVM env automatically</td></tr>
+      <tr><td><span class="pill p1">P1</span></td><td>Mutation spot-check is manual</td><td>The reviewer hand-picks 2-3 lines per run — thorough but not systematic</td><td>A small script that seeds N random single-line RTL mutations, reruns the regression, and reports the catch rate</td></tr>
+      <tr><td><span class="pill p2">P2</span></td><td>UVM 2020 instead of built-in 1.2</td><td>xsim ships UVM 1.2; the bundled Accellera <code>env/_tools/uvm-core</code> sources aren't compiled in yet</td><td>Wire an opt-in <code>verification.uvm_version: "2020"</code> path that compiles the bundled sources into xsim</td></tr>
+      <tr><td><span class="pill p2">P2</span></td><td>Formal (SymbiYosys) never run</td><td>Needs <code>sby</code> + an SMT solver, neither installed — documented gap, not closed</td><td>Add to the bootstrap once a maintainer signs off on the extra install</td></tr>
+      <tr><td><span class="pill p3">P3</span></td><td>Cross-IP pattern library</td><td>Every peakrdl-regblock false-positive and xsim/UVM gotcha was learned fresh on this one IP</td><td>A pattern library applied automatically to the next IP in the family</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>
+  VLSI Front-End Agentic Framework — single-track SystemVerilog UVM on AMD Vivado xsim. Toolchain:
+  PeakRDL, Verible, Yosys, sv2v (free/open-source) + Vivado xsim (free ML Standard); Verilator/Icarus
+  as optional lint/elaboration helpers.
+</footer>
+
+</div>

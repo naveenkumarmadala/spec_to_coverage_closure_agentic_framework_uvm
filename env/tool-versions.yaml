@@ -1,0 +1,81 @@
+# Pinned tool versions for the VLSI front-end flow (single-track SystemVerilog UVM).
+# The bootstrap script (bootstrap-wsl2.sh) and Dockerfile install exactly these.
+# Bump deliberately; a version change can alter simulation/coverage behavior.
+#
+# SIMULATOR POLICY: verification is standard SystemVerilog UVM, run on AMD Vivado
+# xsim — the only free, local, headless simulator that runs COMPLETE UVM with
+# native constrained randomization (rand/constraint/dist), functional + code
+# coverage (xelab -cov + xcrg merge), SVA, and timing. Verilator and Icarus are
+# kept ONLY as fast lint/elaboration helpers; they do NOT run full UVM here.
+# The pyuvm/cocotb track has been retired.
+
+# --- UVM simulator (primary sign-off) ---------------------------------------
+simulator:
+  vivado_xsim:
+    # AMD Vivado "ML Standard Edition" is free (no license file required for xsim,
+    # synthesis, and simulation on supported flows). Install for Linux inside WSL2.
+    edition: "ML Standard Edition"     # free; formerly WebPACK
+    version: "2025.1"                  # any >= 2024.1 has covergroup + code coverage + xcrg merge
+    tools: [xvlog, xelab, xsim, xcrg]  # compile / elaborate / run / coverage-report
+    license: "free (no .lic file needed for xsim/sim/synth on ML Standard)"
+    source: "https://www.xilinx.com/support/download.html"
+    install: manual_installer          # ~40-60 GB; select Vivado ML Standard, Linux
+    notes: >
+      Known caveats designed-around in this flow: xsim reports code + functional
+      coverage but NOT assertion coverage (assertions still execute — evidence is
+      routed through the scoreboard + SVA `cover`); default UVM is 1.2 (switchable
+      by compiling the bundled Accellera uvm-core sources); a few exotic SV
+      constructs are unsupported, so generated code stays within the xsim subset.
+
+# --- UVM library ------------------------------------------------------------
+uvm:
+  # xsim ships a precompiled UVM 1.2 (used via `xvlog -L uvm` / `xelab -L uvm`).
+  # The Accellera sources below are bundled so UVM 2017/2020 can be compiled
+  # from source into xsim when an IP requests it (verification.uvm_version).
+  builtin: "1.2 (Vivado xsim)"
+  accellera_bundled:
+    path: env/_tools/uvm-core          # Accellera UVM reference sources (src/)
+    version: "2020-1.1 (UVM-IEEE bundled)"
+
+# --- static / synthesis toolchain (unchanged) -------------------------------
+toolchain:
+  verible:
+    version: "v0.0-3946-g851d3ff4"     # lint / format / syntax; prebuilt release binary
+    source: "https://github.com/chipsalliance/verible/releases"
+    build: prebuilt
+  yosys:
+    version: "0.46"                    # synthesizability signoff (elaboration)
+    source: "https://github.com/YosysHQ/yosys"
+    build: apt_or_oss_cad_suite
+  verilator:
+    version: "v5.038"                  # OPTIONAL fast lint/elaboration helper only (NOT a UVM sim)
+    source: "https://github.com/verilator/verilator"
+    build: apt_or_source
+    role: "lint/elab helper — never the UVM sign-off simulator"
+  icarus_verilog:
+    version: "12.0"                    # OPTIONAL RTL cross-check only
+    source: "https://github.com/steveicarus/iverilog"
+    build: apt_or_source
+    role: "optional cross-check"
+  sv2v:
+    version: "v0.0.13"                 # SystemVerilog -> Verilog when needed by a downstream tool
+    source: "https://github.com/zachjs/sv2v/releases"
+    build: prebuilt
+
+# --- Python (register generation + flow scripting only; NO cocotb/pyuvm) ----
+python:
+  # Installed into a project venv (env/.venv). Python is used ONLY for register
+  # generation (PeakRDL), config validation, and the xsim flow-runner scripts.
+  # It is NOT part of the verification methodology anymore.
+  interpreter: ">=3.10,<3.13"
+  packages:
+    peakrdl: ">=1.1"                   # unified CLI (pulls the exporters below)
+    peakrdl-regblock: ">=1.1"          # SystemRDL -> SystemVerilog register block RTL
+    peakrdl-uvm: ">=2.2"               # SystemRDL -> UVM RAL model
+    peakrdl-html: ">=2.10"             # SystemRDL -> HTML register docs
+    peakrdl-cheader: ">=1.0"           # SystemRDL -> C headers
+    systemrdl-compiler: ">=1.27"
+    jinja2: ">=3.1"                    # templating engine for env generation
+    pyyaml: ">=6.0"
+    jsonschema: ">=4.0"                # validate ip_config.yaml against the schema
+    openpyxl: ">=3.1"                  # flow/scripts/gen_testplan.py -> Excel test plan

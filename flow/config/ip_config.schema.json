@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vlsi-frontend-agent/ip_config.schema.json",
+  "title": "IP Configuration",
+  "description": "Single declarative source of truth for one IP/subsystem. Every agent, skill, template, and VIP parameterizes off this file so the flow is generic across any IP.",
+  "type": "object",
+  "required": ["ip", "clocks", "resets", "bus", "registers"],
+  "additionalProperties": false,
+  "properties": {
+    "ip": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$", "description": "Module/instance base name, e.g. apb_gpio." },
+        "display_name": { "type": "string" },
+        "version": { "type": "string", "description": "Semantic version of the IP spec, e.g. 0.1.0." },
+        "description": { "type": "string" },
+        "owner": { "type": "string" }
+      }
+    },
+    "clocks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "freq_mhz": { "type": "number", "exclusiveMinimum": 0 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "resets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "active_level", "sync"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "active_level": { "enum": ["high", "low"] },
+          "sync": { "enum": ["sync", "async", "async_assert_sync_deassert"] },
+          "clock": { "type": "string", "description": "Name of the clock this reset is associated with." }
+        }
+      }
+    },
+    "bus": {
+      "type": "object",
+      "description": "The register-access bus interface the IP exposes.",
+      "required": ["protocol", "data_width", "addr_width", "clock", "reset"],
+      "additionalProperties": false,
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "description": "Bus protocol name. OPEN-ENDED: validated against flow/config/vip_registry.yaml (buses:), not a fixed enum, so any protocol can be added via the registry + a VIP plug-in."
+        },
+        "vip": {
+          "type": "string",
+          "description": "Optional explicit VIP path/name override for a custom or plug-in bus VIP. Defaults to the registry entry for `protocol`."
+        },
+        "data_width": { "enum": [8, 16, 32, 64] },
+        "addr_width": { "type": "integer", "minimum": 4, "maximum": 64 },
+        "clock": { "type": "string" },
+        "reset": { "type": "string" },
+        "role": { "enum": ["subordinate", "manager"], "default": "subordinate" }
+      }
+    },
+    "registers": {
+      "type": "object",
+      "description": "Pointer to the SystemRDL register description (the single source of truth for RTL, RAL, and docs via PeakRDL).",
+      "required": ["source", "format"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "description": "Path (relative to the IP dir) to the register description file." },
+        "format": { "enum": ["systemrdl"], "description": "Only SystemRDL is the source of truth; other formats are converted to it upstream." },
+        "top_component": { "type": "string", "description": "Name of the top addrmap in the RDL, if not auto-detected." }
+      }
+    },
+    "interfaces": {
+      "type": "array",
+      "description": "Non-bus side interfaces (protocol pins, streaming, GPIO pads, etc.). Each maps to a UVM agent from the VIP library.",
+      "items": {
+        "type": "object",
+        "required": ["name", "kind", "direction"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "type": "string", "description": "Interface kind, e.g. gpio, spi, i2c, uart, axi-stream, custom. OPEN-ENDED: validated against flow/config/vip_registry.yaml (interfaces:)." },
+          "vip": { "type": "string", "description": "Optional explicit VIP path/name override for a custom or plug-in interface VIP." },
+          "direction": { "enum": ["in", "out", "inout"] },
+          "width": { "type": "integer", "minimum": 1, "default": 1 },
+          "has_vip": { "type": "boolean", "default": false, "description": "True if a ready VIP exists in vip/ for this kind (informational; the registry is authoritative)." },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "interrupts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "level": { "enum": ["high", "low"], "default": "high" },
+          "type": { "enum": ["level", "edge"], "default": "level" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "description": "Verification intent that drives vPlan generation and coverage-closure targets.",
+      "additionalProperties": false,
+      "properties": {
+        "tracks": {
+          "type": "array",
+          "items": { "enum": ["sv-uvm"] },
+          "default": ["sv-uvm"],
+          "description": "Which environment(s) to generate. Single-track: standard SystemVerilog UVM only (the pyuvm/cocotb track has been retired). Kept as an array for forward compatibility."
+        },
+        "coverage_goal_pct": { "type": "number", "minimum": 0, "maximum": 100, "default": 100 },
+        "primary_simulator": { "enum": ["xsim", "verilator", "icarus"], "default": "xsim", "description": "UVM simulator. xsim (AMD Vivado) is the primary sign-off simulator: it runs complete standard UVM with native constrained randomization, functional + code coverage, and SVA. verilator/icarus are optional fast lint/elaboration helpers only — they cannot carry full-UVM sign-off." },
+        "uvm_version": { "enum": ["1.2", "2017", "2020"], "default": "1.2", "description": "UVM library version. xsim ships a precompiled UVM 1.2; 2017/2020 require compiling the bundled Accellera uvm-core sources." },
+        "regression": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Seed policy read by flow/scripts/run_regression.py's read_seed_policy().",
+          "properties": {
+            "seeds": { "type": "integer", "minimum": 1, "default": 1, "description": "Seed count for directed / seed-invariant tests (auto-detected from source; 1 is complete, more is byte-identical waste)." },
+            "random_seeds": { "type": "integer", "minimum": 0, "default": 5, "description": "Fallback seed count for a randomized test not given an explicit count in seeds_per_test." },
+            "seeds_per_test": {
+              "type": "object",
+              "description": "Per-test explicit seed count, keyed by test class name — size to that test's actual random-variable space.",
+              "additionalProperties": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "key_scenarios": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "High-level scenarios the DV lead wants covered; seed the vPlan."
+        }
+      }
+    },
+    "traceability": {
+      "type": "object",
+      "description": "ID prefixes for the requirement->coverage traceability spine.",
+      "additionalProperties": false,
+      "properties": {
+        "req_prefix": { "type": "string", "default": "REQ" },
+        "spec_prefix": { "type": "string", "default": "SPEC" },
+        "vplan_prefix": { "type": "string", "default": "VP" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Populated by the spec-ingestor when this config was auto-extracted from a requirement document. Records the source and everything the user must confirm at the ingestion gate.",
+      "additionalProperties": false,
+      "properties": {
+        "source_document": { "type": "string", "description": "Path to the requirement spec this config was extracted from." },
+        "extracted_by": { "type": "string", "description": "Agent/tool that produced the extraction." },
+        "extracted_at": { "type": "string", "description": "ISO timestamp of extraction." },
+        "confidence": { "enum": ["high", "medium", "low"], "description": "Overall extraction confidence." },
+        "needs_confirmation": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Human-readable fields/assumptions the user must confirm or correct before the flow proceeds past the ingestion gate."
+        }
+      }
+    },
+    "subsystem": {
+      "type": "object",
+      "description": "OPTIONAL. Present only for multi-block subsystems; single-IP configs omit it entirely. Provides the hierarchy hooks so integration-level verification can be added later without reworking single-IP configs.",
+      "additionalProperties": false,
+      "required": ["blocks"],
+      "properties": {
+        "blocks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "config"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "config": { "type": "string", "description": "Path to the child block's ip_config.yaml." },
+              "base_address": { "type": "string", "description": "Base address of this block in the subsystem address map (hex string, e.g. 0x4000_0000)." }
+            }
+          }
+        },
+        "interconnect": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "protocol": { "type": "string", "description": "Fabric/bus protocol connecting the blocks (validated against vip_registry.yaml)." },
+            "topology": { "enum": ["shared-bus", "crossbar", "point-to-point", "noc"] }
+          }
+        }
+      }
+    }
+  }
+}

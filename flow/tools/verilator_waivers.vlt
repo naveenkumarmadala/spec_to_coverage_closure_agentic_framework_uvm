@@ -1,0 +1,36 @@
+// flow/tools/verilator_waivers.vlt
+//
+// Shared Verilator lint waivers for known false-positives in TOOL-GENERATED RTL.
+// This file is IP-agnostic: it matches by filename pattern, and peakrdl-regblock
+// always names its outputs "<ip>_regblock.sv" / "<ip>_regblock_pkg.sv" for every
+// IP, so any IP's static gate picks these waivers up automatically -- no per-IP
+// waiver file needed.
+//
+// Convention (see CLAUDE.md "Generic-first" + docs/architecture.md "Known risks
+// & mitigations: waivers require recorded justification"): never hand-edit files
+// under */generated/* (they are clobbered on regeneration). If a real
+// tool-false-positive originates in generated output, waive it here instead,
+// with the justification recorded next to the rule below.
+//
+// Usage: add this file to the lint-tool's source list alongside the RTL, e.g.:
+//   <tool> --lint-only -Wall ... flow/tools/verilator_waivers.vlt <rtl files...>
+
+`verilator_config
+
+// --- MULTIDRIVEN on `field_combo` (peakrdl-regblock generated *_regblock.sv) ---
+// peakrdl-regblock packs every register field's transient control signals
+// (next / load_next / ...) into members of one shared `field_combo` packed
+// struct/union, and emits one always_comb block per field that drives only
+// that field's own (bit-disjoint) member. Verilator's MULTIDRIVEN check
+// operates at whole-variable granularity, not per-struct-member, so it flags
+// this bit-disjoint, semantically-correct fan-out as if multiple processes
+// drove the same net. This is a structural property of every peakrdl-regblock
+// output, not a bug in any one IP's registers -- false positive, waived globally.
+lint_off -rule MULTIDRIVEN -file "*_regblock.sv"
+
+// --- UNUSEDPARAM on peakrdl-regblock generated *_regblock_pkg.sv ---
+// peakrdl-regblock always emits DATA_WIDTH / MIN_ADDR_WIDTH / SIZE localparams
+// in the generated package for downstream/documentation consumers (e.g. RAL,
+// address decoders); the regblock module itself doesn't always reference all
+// three internally. Harmless, structural to the generator -- waived globally.
+lint_off -rule UNUSEDPARAM -file "*_regblock_pkg.sv"

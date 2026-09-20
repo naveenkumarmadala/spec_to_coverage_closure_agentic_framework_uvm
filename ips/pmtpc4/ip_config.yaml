@@ -1,0 +1,123 @@
+# =============================================================================
+# ip_config.yaml — PMTPC-4 Programmable Multi-Channel Timer/PWM Controller
+# Auto-extracted by the spec-ingestor from the three PMTPC-4 specification docs,
+# then confirmed (source-of-truth = all three specs, faithful build).
+# =============================================================================
+
+ip:
+  name: pmtpc4
+  display_name: "Programmable Multi-Channel Timer/PWM Controller (PMTPC-4)"
+  version: "1.1.0"                      # tracks Design Spec / Register Spec Rev 1.1
+  description: >
+    APB3 slave peripheral with four independent timer/PWM channels. Each channel
+    has a down-counter (reload from PERIOD), one-shot/periodic modes, PWM output
+    (high while COUNT > COMPARE), pause/resume and soft-disable. A shared 16-bit
+    prescaler divides PCLK for all channels. Per-channel raw (W1C) + masked
+    interrupts aggregate, under a global enable, into one active-high IRQ.
+    Async PRESETn plus a synchronous self-clearing soft reset. Register space
+    0x00-0xFF; reserved/RO/unaligned accesses return PSLVERR; CHx_COUNT reads
+    insert exactly one APB wait state.
+  owner: "Verification Lead"
+
+clocks:
+  - name: pclk
+    freq_mhz: 100
+    description: "Single clock domain: clocks the APB interface and (prescaled) all channel counters. No CDC."
+
+resets:
+  - name: presetn
+    active_level: low
+    sync: async                        # async, active-low system reset (REQ-RST-1)
+    clock: pclk
+
+bus:
+  protocol: apb                        # AMBA3 APB3 slave (registry: buses.apb, cpuif apb3-flat)
+  data_width: 32                       # 32-bit, word-aligned transfers only
+  addr_width: 8                        # PADDR 8-bit, 0x00-0xFF (256 bytes)
+  clock: pclk
+  reset: presetn
+  role: subordinate
+
+registers:
+  source: rdl/pmtpc4.rdl
+  format: systemrdl
+  top_component: pmtpc4
+
+interfaces:
+  - name: pwm_out
+    kind: pwm
+    direction: out
+    width: 4                           # one PWM output per channel (pwm_out[3:0])
+    has_vip: true                      # vip/pwm (registry: interfaces.pwm, status ready) — passive observation UVC
+    description: "Per-channel PWM/timer output; driven only while owning channel enabled with PWM_EN=1; forced low when MODULE_EN=0."
+  - name: irq
+    kind: interrupt
+    direction: out
+    width: 1
+    has_vip: false
+    description: "Single active-high level IRQ = GLOBAL_IE AND OR(INT_STATUS[n] AND INT_ENABLE[n])."
+
+interrupts:
+  - name: irq
+    level: high
+    type: level
+    description: "Aggregated, masked, globally-gated per-channel expiry interrupt."
+
+verification:
+  tracks: [sv-uvm]                     # single-track: standard SystemVerilog UVM only
+  coverage_goal_pct: 100               # REQ-VERIF-1/2: 100% functional + code coverage
+  primary_simulator: xsim              # AMD Vivado xsim — full UVM sign-off simulator
+  uvm_version: "1.2"                   # xsim built-in UVM; bump to 2020 to compile Accellera uvm-core
+  regression:
+    # Seeds follow randomization intent. Directed tests target one specific scenario
+    # with deterministic stimulus -> 1 seed is a complete run; extra seeds are byte-
+    # identical waste (run_regression.py auto-detects directed vs randomized from the
+    # source). Randomized tests get multiple seeds, and the COUNT is sized per test to
+    # its random-variable space — declared here in seeds_per_test.
+    seeds: 1                 # directed / seed-invariant tests
+    random_seeds: 5          # fallback for a randomized test not listed below
+    seeds_per_test:
+      # pmtpc4_rand_test random vars: ch(2b), which(3b), val16(16b w/ 4-point dist),
+      # ctrl(5b) — a modest discrete space that 80 iters/sim largely saturates; 8 seeds
+      # give ordering diversity for bug-hunting without waste.
+      pmtpc4_rand_test: 8
+  key_scenarios:
+    # Register / RAL
+    - "Reset values, R/W access policy, and reserved-bit behavior for every register/field."
+    - "PSLVERR on reserved regions (0x18-0x1C, 0x68-0x6C, 0x70-0xFF), RO writes (STATUS/GLOBAL_ISR/CHx_COUNT), and unaligned PADDR[1:0]!=0 — always zero wait states."
+    - "CHx_COUNT read inserts exactly one APB wait state; all other legal accesses are zero-wait."
+    # Channel core FSM
+    - "Per-channel FSM IDLE->LOAD->RUNNING->EXPIRED with PERIOD reload; PERIOD=0 expires next tick (no lockup)."
+    - "One-shot mode self-disables (CH_EN self-clears) on expiry; periodic mode auto-reloads."
+    - "PWM waveform: high while COUNT>COMPARE; COMPARE=0 full-high-except-0; COMPARE>=PERIOD full-low."
+    - "Pause/resume freezes COUNT and pwm_out and resumes from frozen value (level-sensitive)."
+    - "Soft-disable (CH_EN=0) returns channel to IDLE immediately from any state."
+    - "Global prescaler divide-by-(N+1) for N=0..0xFFFF; change mid-run takes effect on next tick boundary."
+    # Interrupts
+    - "Raw per-channel INT_STATUS latches on expiry independent of masking; W1C with set-priority on same-cycle re-expiry."
+    - "IRQ aggregation with per-channel INT_ENABLE and GLOBAL_IE; GLOBAL_ISR read-back matches IRQ condition."
+    - "Simultaneous multi-channel expiry on the same prescaled tick sets all bits with no loss."
+    # Reset
+    - "Async PRESETn: all regs to reset, FSMs to IDLE, pwm_out low, irq low."
+    - "Sync soft reset clears channels + interrupt state but preserves PRESCALER/CLK_SEL and in-flight APB; self-clears in 1 cycle."
+    # Errata (Design Spec Section 12) — must be explicitly covered
+    - "ERRATA 12.1: CH_EN=1 & CH_PAUSE=1 written together from IDLE -> LOAD then directly PAUSED."
+    - "ERRATA 12.2: CH_MODE sampled live at each EXPIRED (mid-run write takes effect at next expiry)."
+    - "ERRATA 12.3: MODULE_EN=0 freezes (not resets) all channels; pwm_out low, STATUS.BUSY=0; resume from frozen state."
+    - "ERRATA 12.4: illegal/PSLVERR accesses never insert a wait state."
+    - "ERRATA 12.5: self-clearing bits (SOFT_RESET, CH_START) never observable as 1 by a subsequent read (back-to-back min-latency directed test)."
+
+traceability:
+  req_prefix: REQ                      # spec already uses REQ-CORE-*, REQ-INT-*, REQ-APB-*, REQ-RST-*, REQ-OUT-*
+  spec_prefix: SPEC
+  vplan_prefix: VP
+
+provenance:
+  source_document: spec/PMTPC-4_Requirements_Specification.md (+ Design & Register Spec Rev 1.1)
+  extracted_by: spec-ingestor
+  extracted_at: "2026-09-05T00:00:00Z"
+  confidence: high
+  needs_confirmation:
+    - "RESOLVED by user: source of truth = all three specs (faithful build). Register map/errata taken from Design & Register Spec Rev 1.1."
+    - "pwm interface kind registered as a new VIP entry (vip/pwm, status: planned) — needs a PWM monitor/checker UVC for the SV/UVM env."
+    - "primary_simulator=xsim (AMD Vivado, free ML Standard) — the SV/UVM env compiles/elaborates/runs on it; see dv/README.md."

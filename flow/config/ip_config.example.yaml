@@ -1,0 +1,105 @@
+# =============================================================================
+# ip_config.yaml — the single declarative source of truth for one IP.
+#
+# This is the PILOT: an APB register-heavy GPIO + timer peripheral. Copy this
+# file to ips/<name>/ip_config.yaml and edit it to re-target the flow to any IP.
+# Validate with:  python flow/scripts/validate_config.py ips/<name>/ip_config.yaml
+# =============================================================================
+
+ip:
+  name: apb_gpio                       # module base name (a-z, 0-9, _)
+  display_name: "APB GPIO + Timer"
+  version: "0.1.0"
+  description: >
+    A 32-bit APB4 subordinate peripheral providing general-purpose I/O with
+    per-pin direction control, output data, input sampling, interrupt-on-change,
+    and a free-running 32-bit timer with a programmable compare/interrupt.
+  owner: "DV Lead"
+
+clocks:
+  - name: pclk
+    freq_mhz: 100
+    description: "APB bus clock; single clock domain for the whole IP."
+
+resets:
+  - name: presetn
+    active_level: low
+    sync: async_assert_sync_deassert
+    clock: pclk
+
+bus:
+  protocol: apb4                       # OPEN-ENDED: any key in flow/config/vip_registry.yaml (buses:).
+                                       # Unknown protocol? add a registry entry + VIP, or set `vip:` below.
+  # vip: vip/my_custom_bus             # optional override for a custom/plug-in bus VIP
+  data_width: 32
+  addr_width: 12                       # 4 KB register space
+  clock: pclk
+  reset: presetn
+  role: subordinate
+
+# The register map is authored in SystemRDL and is the source of truth for
+# RTL (PeakRDL-regblock), UVM RAL (PeakRDL-uvm), and docs (PeakRDL-html).
+registers:
+  source: rdl/apb_gpio.rdl
+  format: systemrdl
+  top_component: apb_gpio
+
+# Non-bus side interfaces. Each maps to a reusable agent from vip/.
+interfaces:
+  - name: gpio
+    kind: gpio
+    direction: inout
+    width: 32
+    has_vip: true
+    description: "32 bidirectional GPIO pads with per-pin direction control."
+
+interrupts:
+  - name: irq
+    level: high
+    type: level
+    description: "Combined interrupt: GPIO change and/or timer compare."
+
+verification:
+  tracks: [sv-uvm]                     # single-track: standard SystemVerilog UVM only
+  coverage_goal_pct: 100
+  primary_simulator: xsim              # AMD Vivado xsim — full UVM sign-off simulator
+  uvm_version: "1.2"                   # xsim built-in UVM; bump to 2020 to compile Accellera uvm-core
+  regression:
+    seeds: 20
+    random_tests: 10
+  key_scenarios:
+    - "Write/read every register field and check reset values."
+    - "Drive each GPIO as input; verify input register sampling and interrupt-on-change."
+    - "Configure each GPIO as output; verify pad drive and direction control."
+    - "Program the timer compare; verify counter rollover and compare interrupt."
+    - "Back-to-back APB transfers with wait states; verify PREADY/PSLVERR behavior."
+    - "Illegal/reserved address access; verify error response."
+
+traceability:
+  req_prefix: REQ
+  spec_prefix: SPEC
+  vplan_prefix: VP
+
+# --- provenance (auto-filled by the spec-ingestor when extracted from a document) ------------
+# Present only for configs derived from a requirement spec; hand-authored configs omit it.
+# provenance:
+#   source_document: spec/gpio_requirements.pdf
+#   extracted_by: spec-ingestor
+#   extracted_at: "2026-09-05T00:00:00Z"
+#   confidence: medium
+#   needs_confirmation:
+#     - "Address width assumed 12 (4 KB) — not stated in the document."
+#     - "Reset polarity assumed active-low."
+
+# --- subsystem (OPTIONAL — only for multi-block subsystems; single IPs omit this) ------------
+# subsystem:
+#   blocks:
+#     - name: gpio0
+#       config: blocks/gpio0/ip_config.yaml
+#       base_address: 0x4000_0000
+#     - name: timer0
+#       config: blocks/timer0/ip_config.yaml
+#       base_address: 0x4000_1000
+#   interconnect:
+#     protocol: axi4-lite            # validated against vip_registry.yaml
+#     topology: crossbar

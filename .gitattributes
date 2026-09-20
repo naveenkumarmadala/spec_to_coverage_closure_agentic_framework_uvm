@@ -1,0 +1,19 @@
+# These files are consumed by the Linux toolchain in WSL2/Docker.
+# Force LF so CRLF (from editing on Windows) never breaks bash / simulators / tools.
+*.sh    text eol=lf
+*.py    text eol=lf
+*.sv    text eol=lf
+*.svh   text eol=lf
+*.v     text eol=lf
+*.vh    text eol=lf
+*.rdl   text eol=lf
+*.f     text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+Makefile        text eol=lf
+Dockerfile      text eol=lf
+*.mk    text eol=lf
+
+# Docs can follow platform conventions
+*.md    text

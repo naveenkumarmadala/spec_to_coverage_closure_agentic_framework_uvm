@@ -1,0 +1,19 @@
+// TEMPLATE (mechanical layer) — {{ ip }}_full_test: runs EVERY vseq in ONE simulation
+// so a single coverage database captures the union of functional coverage across all
+// scenarios. This is the reliable path to a merged number on xsim (xsim overwrites the
+// shared db per run and xcrg cross-db merge is unreliable). Standard for every IP.
+//
+// The agent regenerates the vseq list below to match the IP's actual vseqs (including
+// the coverage-closure vseq and the constrained-random vseq), keeping it complete.
+class {{ ip }}_full_test extends {{ ip }}_base_test;
+    `uvm_component_utils({{ ip }}_full_test)
+    function new(string n, uvm_component p); super.new(n, p); endfunction
+    task run_phase(uvm_phase phase);
+        phase.raise_objection(this);
+        // {{ '{{' }} AGENT: create + run_vseq() every vseq the IP defines, in a sensible order:
+        //   register (RAL) -> directed feature scenarios -> interrupts -> error/PSLVERR
+        //   -> coverage-closure sweep (all channels/all states) -> constrained-random traffic. {{ '}}' }}
+        #100ns;
+        phase.drop_objection(this);
+    endtask
+endclass

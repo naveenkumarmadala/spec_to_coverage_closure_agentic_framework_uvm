@@ -1,0 +1,42 @@
+// TEMPLATE (mechanical layer) — {{ ip }}_tb_top. Rendered from ip_config + RAL.
+// Owns: clock/reset, DUT instance, config_db vif, run_test, and the SVA BIND PATTERN.
+// The agent fills only the DUT port map and the per-block SVA bind connections.
+//
+// BAKED-IN xsim GOTCHAS (do not "simplify" away):
+//  * White-box SVA binds connect to the *registered* signal, never a combinational
+//    output alias (xsim samples a continuous-assign net as X in the preponed region).
+//    e.g. bind the FSM checker's state input to the internal `state` reg, not `state_o`.
+//  * $dumpvars is fine on xsim (writes VCD); timescale is set at xelab, not here.
+module {{ ip }}_tb_top;
+    import uvm_pkg::*;
+    import {{ ip }}_test_pkg::*;
+
+    logic {{ clock }} = 0;
+    logic {{ reset }};
+    always #({{ clock_half_period | default(5) }}) {{ clock }} = ~{{ clock }};
+
+    {{ bus }}_if #(.ADDR_WIDTH({{ addr_width }}), .DATA_WIDTH({{ data_width }}))
+        {{ bus }} (.{{ clock }}({{ clock }}), .{{ reset }}({{ reset }}));
+
+    // {{ '{{' }} AGENT: instantiate the DUT, mapping bus + side-signals here {{ '}}' }}
+    {{ ip }} dut ( /* agent fills the port map from ip_config interfaces */ );
+
+    // {{ '{{' }} AGENT: bind each white-box SVA checker here.
+    //   REQUIRED: connect checker inputs to the *registered* RTL signals (see gotcha above). {{ '}}' }}
+
+    initial begin
+        {{ reset }} = 0;
+        repeat ({{ reset_cycles | default(5) }}) @(posedge {{ clock }});
+        {{ reset }} = 1;
+    end
+
+    initial begin
+        uvm_config_db#(virtual {{ bus }}_if)::set(null, "*", "vif", {{ bus }});
+        run_test();
+    end
+
+    initial begin
+        $dumpfile("{{ ip }}.vcd");
+        $dumpvars(0, {{ ip }}_tb_top);
+    end
+endmodule

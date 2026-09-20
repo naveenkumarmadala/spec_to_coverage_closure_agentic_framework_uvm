@@ -1,0 +1,185 @@
+# pmtpc4 toggle-coverage waivers -- MAINTAINED, not auto-generated.
+# Appended verbatim into pmtpc4_cov_exclusions.txt by gen_exclusions.py.
+# Mostly per-signal (`signal -X`): a whole DUT signal that CANNOT toggle by construction
+# (structurally dead in this integration) or is a proven tool artifact -- never a
+# reachable-but-hard bit. One entry (below) is a whole-MODULE exclusion (`module -X`),
+# which is categorically different and flagged as such at its own declaration -- see
+# that entry's comment before treating it the same as the signal-level ones.
+# Justification lines (#) are for humans; xcrg ignores them. See reports/coverage_waivers.md.
+#
+# --- Whole-module exclusion: xcrg produces ZERO toggle data for this module, not just a ---
+# --- low score. Not a "proven covered" waiver like the signal-level ones below -- see ---
+# --- reports/coverage_waivers.md ("2026-09-19 prescaler module-exclusion") for the full ---
+# --- distinction before reusing this pattern elsewhere. ---
+# pmtpc4_prescaler's xcrg module report reads "No Toggles in Module" -- zero
+# toggle-trackable variables found, not a measured-and-low score. Independently
+# corroborated: pmtpc4_prescaler.sv:31 `cnt <= cnt + 1` executes 973x per the STATEMENT
+# report (a different coverage metric, same database), so cnt provably increments; xsim's
+# toggle instrumentation simply never instruments this module. Per-signal waivers on `cnt`/
+# `tick_en` (still below, kept for documentation-history continuity) cannot mechanically
+# apply to a module with no toggle data at all -- there is nothing for a signal-level
+# directive to remove from. Tested empirically 2026-09-19 (not assumed): excluding the
+# whole module moved DUT toggle 39.85% -> 46.5%, DUT statement 99.8658% -> 99.8634% and
+# branch 98.0707% -> 98.0392% (both tiny decreases -- this module was a free 100% contributor
+# to those two metrics, and removing it costs that). Condition unaffected (100% either way).
+# This is the ONLY module-level DUT exclusion in this project; unlike signal-level waivers,
+# it removes prescaler's toggle behavior from measurement entirely rather than proving it
+# covered -- do not extend this pattern to another module without the same "No Toggles in
+# Module" / zero-instrumentation precondition and the same before/after measurement.
+module -pmtpc4_prescaler
+#
+# --- Wrapper-bypassed regblock CPU-interface nets ---
+# pmtpc4_apb_slave handles ALL PSLVERR/decoding itself (cpuif_req = complete & ~err) and
+# only ever issues legal, full-word, in-range accesses. The PeakRDL regblock therefore
+# never sees an error, a stall, or a partial write, so these nets never leave reset:
+#   cpuif_wr_biten  : driven constant 32'hFFFF_FFFF by the wrapper (word writes only)
+signal -cpuif_wr_biten
+#   cpuif_req_stall_wr / _rd : regblock is single-cycle; the wrapper never stalls it
+signal -cpuif_req_stall_wr
+signal -cpuif_req_stall_rd
+#   cpuif_rd_err / cpuif_wr_err / decoded_err : errors are resolved upstream, never here
+signal -cpuif_rd_err
+signal -cpuif_wr_err
+signal -decoded_err
+#   is_valid_addr / is_valid_rw : the wrapper only forwards already-validated accesses
+signal -is_valid_addr
+signal -is_valid_rw
+#   readback_err : no errored readback ever reaches the regblock readback mux
+signal -readback_err
+#
+# --- Prescaler counter/tick: xsim toggle-sampling artifact (NOT unexercised) ---
+# cov_close/toggle vseqs run the prescaler with a non-zero divisor for 200+ cycles;
+# pmtpc4_prescaler.sv:31 "cnt <= cnt + 1" executes 973x (proven in the statement report),
+# so cnt provably increments. xsim still reports its toggle as 0% while every other
+# internal reg toggles normally -- a tool sampling artifact on this signal, not a coverage
+# hole and not an RTL bug. 'cnt' is unique to pmtpc4_prescaler in the DUT. xcrg's raw
+# module-level toggle report for this module literally reads "No Toggles in Module" --
+# zero toggle-trackable variables found at all, a stronger statement of the same gap.
+# tick_en (the module's own output port) is swept into the same report; added here for
+# documentation parity with cnt even though the tool doesn't reliably honor either.
+signal -cnt
+signal -tick_en
+
+# --- PeakRDL-generated `automatic` procedural temporaries (regblock) ---
+# Every field in a PeakRDL passthrough-cpuif regblock gets an `always_comb` block with
+# `automatic logic next_c` / `automatic logic load_next_c` computing its next value --
+# procedural temporaries re-computed fresh each evaluation, not persistent nets/regs.
+# xsim's toggle instrumentation (like most simulators) only tracks persistent storage,
+# not automatic block-locals, so these NEVER register toggle activity regardless of
+# stimulus. The actual field value they compute (field_storage.<REG>.<FIELD>.value) is a
+# real register and is independently proven active via 100% statement coverage on the
+# whole regblock file. THIS PATTERN RECURS IN EVERY PEAKRDL-GENERATED REGBLOCK -- same two
+# signal names, one pair per field, regardless of the IP's register map. The justification
+# for waiving these holds (they are structurally untrackable, not a real gap), but the
+# waiver's MECHANICAL EFFECT is not confirmed: isolated testing (2026-09-16) showed removing
+# these two lines from the real exclusion file changes the aggregate DUT toggle score by
+# only 0.01 percentage point (38.60% -> 38.59%), i.e. essentially zero -- xcrg is not
+# actually removing these ~150 entries from the denominator despite the correctly-formatted
+# directive. Same unresolved class of tool behavior as cnt/is_valid_addr/is_valid_rw/
+# cpuif_rd_data_pad above. This is WHY pmtpc4_regblock's reported toggle score (~18%) looks
+# so low: ~150 of its ~155 "uncovered" entries are these two names, structurally incapable
+# of ever toggling and waived-in-principle, but still counted against the score because the
+# tool doesn't honor the exclusion. The regblock module's REAL residual (behavior that is
+# actually unexercised, not just mismeasured) is much smaller -- see coverage_waivers.md.
+signal -next_c
+signal -load_next_c
+
+# --- Regblock CPU-interface pass-through aliases (structurally active, tool doesn't track) ---
+# cpuif_addr / decoded_wr_biten are `assign X = s_X;`-style continuous-assign aliases of
+# the top-level address/biten ports. Independently proven active: cg_apb's cp_addr
+# coverpoint shows 31/31 address bins hit (100%) and cp_rw.wr shows 1579+ write hits --
+# impossible unless these aliases took many distinct values. A 0/0 toggle report for a
+# signal proven active by a DIFFERENT, independently-sampled coverage model from the SAME
+# simulation database is a tool limitation on pass-through alias nets, not a real gap.
+signal -cpuif_addr
+signal -decoded_wr_biten
+# cpuif_wr_data (pmtpc4.sv top level): FOUND 2026-09-19, DELIBERATELY NOT WAIVED, unlike
+# cpuif_addr/decoded_wr_biten above despite being the same pass-through-alias class.
+# Reason: xcrg's `signal -X` directive matches by BARE NAME, design-wide, not by
+# hierarchical path (confirmed empirically here, not assumed). pmtpc4_regblock has its
+# OWN, separately-declared `cpuif_wr_data` (its own input port) that IS genuinely,
+# correctly tracked as covered (1/1) -- a `signal -cpuif_wr_data` directive matches and
+# excludes BOTH copies at once. Tried and measured: adding it moved the aggregate DUT
+# toggle score from 39.85% to 39.22% -- DOWN, not up -- because it discarded regblock's
+# real, working 32-bit coverage to hide the top-level wire's much smaller artifact
+# contribution. Reverted. The top-level `cpuif_wr_data` 0/0 remains a confirmed tool
+# artifact (same evidence as cpuif_addr: regblock's own copy proves the data is real and
+# varies, and cg_apb.cp_rw.wr shows 2261 write hits in the same run) but is intentionally
+# left un-excluded because excluding it is net-negative for this specific name collision.
+# NOTE for whoever waives cpuif_addr/decoded_wr_biten/start_trig/pwm_level/int_status_val/
+# int_en_val next: this file has NOT verified each of those is free of the same
+# regblock-name-collision problem -- each was accepted on its own stated evidence, not
+# re-measured with a before/after xcrg run the way this one was. Worth an audit pass.
+# ch_expiry (pmtpc4.sv top level, one bit per channel): FOUND 2026-09-19, DELIBERATELY NOT
+# WAIVED -- see coverage_waivers.md for the full evidence (cross-validated via
+# g_int_bit[3].cg_int_bit.cp_op.set_by_hw=15 hits and cg_fsm ch3 cp_trans.run_exp=83 hits
+# in the same database, proving bit [3] is genuinely active and this is a tool blind spot,
+# not a real gap or wiring bug). Not added as `signal -ch_expiry` here because xcrg has NO
+# bit-range exclusion syntax (established elsewhere in this file): bits [0],[1],[2] of this
+# same array ALREADY toggle cleanly and are genuinely counted as covered today. A
+# whole-signal waiver would discard their real, correctly-measured coverage to hide one
+# bit's tool artifact -- strictly worse than leaving it unwaived. Same class of problem
+# `cpuif_rd_data_pad` solved with an RTL split (mixed active/dead bits, no bit-range
+# syntax available) -- an equivalent split (four independent 1-bit expiry ports/wires
+# instead of one 4-element array) would fix this cleanly but was not done this pass; see
+# coverage_waivers.md's action-item list.
+# readback_data_var is the SAME `automatic` local pattern as next_c/load_next_c above
+# (the readback mux's per-cycle scratch variable), whole-signal 0/0, safe to waive.
+signal -readback_data_var
+
+# --- Channel continuous-assign alias booleans (structurally active, tool doesn't track) ---
+# start_trig / pwm_level: `wire` continuous assignments of boolean expressions
+# (pmtpc4_channel.sv). start_trig directly gates the S_IDLE->S_LOAD branch, whose branch
+# table shows real TRUE hit counts (8-16 per channel instance) -- contradicts a 0/0 toggle
+# report for the exact same signal in the exact same database. Same alias-tracking
+# limitation as cpuif_addr/decoded_wr_biten above, on the channel side.
+signal -start_trig
+signal -pwm_level
+
+# --- Top-level interrupt-aggregation alias signals ---
+# int_status_val / int_en_val: `wire` continuous-assign aliases of
+# hwif_out.INT_STATUS/INT_ENABLE (pmtpc4.sv). cg_apb independently proves GISR/GIE/
+# INTSTAT/INTEN registers were all accessed, and a dedicated irq_test exercises interrupts
+# explicitly -- the underlying fields these alias are demonstrably active. Same
+# alias-tracking limitation.
+signal -int_status_val
+signal -int_en_val
+
+# --- compare_shadow: EMPIRICALLY PROVEN tool artifact, not assumed ---
+# pmtpc4_channel.sv's compare_shadow is a real always_ff register (not automatic, not an
+# alias) latched at LOAD entry. A targeted vseq drove COMPARE=0xBEEF->0->0xBEEF->0 through
+# repeated LOAD triggers on every channel; toggle still read 0/0. To settle it definitively
+# a temporary RTL $display was added at the latch site (since reverted) and the test
+# re-run: the trace proved `compare` genuinely carries 1/8/f/beef/0 repeatedly at the exact
+# moment of latching (49 executions total, including explicit beef->0 cycles from the
+# added stimulus) -- i.e. compare_shadow demonstrably DOES change value in hardware. xsim
+# simply doesn't observe it. Confirmed via direct verification before waiving, not assumed
+# like the alias cases above.
+signal -compare_shadow
+
+# --- cpuif_rd_data_pad: the dead half of an RTL split (see coverage_waivers.md) ---
+# cpuif_rd_data (top, pmtpc4.sv) mixed real field-readback bits with structurally-dead
+# upper bits (every register/field in this map is <=16 bits; no readback_data_var write in
+# the generated regblock ever touches a bit above 15). xsim's exclusion file has NO
+# bit-range syntax (confirmed empirically: `signal -ch_count[31:16]` produces "Signal Name
+# ... is not declared ... ignored", and confirmed against AMD UG937/UG900 docs), so the
+# only way to waive just the dead half without discarding the real half's coverage was to
+# split the RTL: cpuif_rd_data_active (real; independently verified 100% covered -- this
+# part of the split DOES work) / cpuif_rd_data_pad (always zero, intended to be waived
+# wholesale). The original 32-bit wire was eliminated entirely, not just aliased.
+# CONFIRMED (2026-09-15, verification-reviewer, and reproduced in isolation with a
+# single-line exclusion file containing only this directive): this specific `signal -`
+# exclusion is NOT honored by xcrg -- cpuif_rd_data_pad still appears in the toggle report
+# as uncovered even though the directive is present and correctly formatted. Same
+# unresolved class of tool behavior already documented for cnt/is_valid_addr/is_valid_rw
+# above -- kept here for audit-trail completeness and in case a future xsim version starts
+# honoring it, not because it is currently confirmed effective. The measured toggle
+# improvement from this session's fixes (26.13% -> 38.6%) is real and independent of
+# whether this specific line takes effect -- it comes from cpuif_rd_data_active now being
+# correctly, separately tracked, not from pad being removed from the denominator.
+# NOTE: pmtpc4_regblock.sv has its OWN identically-named internal
+# cpuif_rd_data/readback_data with the same mixed-bits issue -- deliberately NOT waived,
+# since that file is PeakRDL-GENERATED (a future regen would silently discard a hand-edit)
+# and a same-name signal exclusion here would also match regblock's copy, discarding its
+# real low-bit coverage too.
+signal -cpuif_rd_data_pad

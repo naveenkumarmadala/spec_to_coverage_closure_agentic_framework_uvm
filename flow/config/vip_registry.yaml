@@ -1,0 +1,109 @@
+# =============================================================================
+# vip_registry.yaml — the pluggable Verification-IP registry.
+#
+# This is what makes the flow PROTOCOL-AGNOSTIC. Every bus protocol and every
+# side-interface "kind" a config may reference must resolve to an entry here.
+# ip_config.yaml's bus.protocol and interfaces[].kind are validated against this
+# file — NOT against a hard-coded list in the schema.
+#
+# To support a brand-new protocol/interface: add an entry here and drop a VIP
+# under the given `path`. No agent, skill, or schema edits are needed.
+# See the `vip-registry` skill for the step-by-step.
+#
+# `status`:
+#   ready       - VIP exists and is usable now
+#   planned     - registered, VIP not yet implemented (flow will scaffold/flag)
+#   stub        - auto-created by the spec-ingestor for an unknown protocol; needs a VIP
+# `tracks`: which environments the VIP supports (single-track: sv-uvm)
+# `cpuif`: the PeakRDL --cpuif name for a register bus (omit for non-register interfaces)
+# =============================================================================
+
+version: 1
+
+# ---- Register/access bus protocols -----------------------------------------
+buses:
+  apb:
+    display_name: "AMBA APB"
+    path: vip/apb
+    tracks: [sv-uvm]
+    cpuif: apb3-flat
+    status: ready   # demonstrably working: pmtpc4's 24/24-run regression drives entirely through it
+  apb4:
+    display_name: "AMBA APB4"
+    path: vip/apb
+    tracks: [sv-uvm]
+    cpuif: apb4-flat
+    status: planned
+  axi4-lite:
+    display_name: "AMBA AXI4-Lite"
+    path: vip/axi4_lite
+    tracks: [sv-uvm]
+    cpuif: axi4-lite-flat
+    status: planned
+  axi4:
+    display_name: "AMBA AXI4"
+    path: vip/axi4
+    tracks: [sv-uvm]
+    cpuif: axi4-lite-flat   # register access uses the lite subset; full AXI for data path
+    status: planned
+  ahb-lite:
+    display_name: "AMBA AHB-Lite"
+    path: vip/ahb_lite
+    tracks: [sv-uvm]
+    cpuif: ahb-flat
+    status: planned
+  wishbone:
+    display_name: "Wishbone B4"
+    path: vip/wishbone
+    tracks: [sv-uvm]
+    cpuif: passthrough
+    status: planned
+  tilelink-ul:
+    display_name: "TileLink Uncached Lightweight"
+    path: vip/tilelink_ul
+    tracks: [sv-uvm]
+    cpuif: passthrough
+    status: planned
+
+# ---- Side-interface kinds ---------------------------------------------------
+interfaces:
+  gpio:
+    display_name: "General-purpose I/O"
+    path: vip/gpio
+    tracks: [sv-uvm]
+    status: planned
+  spi:
+    display_name: "SPI"
+    path: vip/spi
+    tracks: [sv-uvm]
+    status: planned
+  i2c:
+    display_name: "I2C"
+    path: vip/i2c
+    tracks: [sv-uvm]
+    status: planned
+  uart:
+    display_name: "UART"
+    path: vip/uart
+    tracks: [sv-uvm]
+    status: planned
+  axi-stream:
+    display_name: "AXI4-Stream"
+    path: vip/axi_stream
+    tracks: [sv-uvm]
+    status: planned
+  pwm:
+    display_name: "PWM / timer output"
+    path: vip/pwm
+    tracks: [sv-uvm]
+    status: ready          # pwm_if + passive monitor/agent; observation only (no driver)
+  interrupt:
+    display_name: "Interrupt line"
+    path: vip/common
+    tracks: [sv-uvm]
+    status: planned
+  custom:
+    display_name: "User-defined interface"
+    path: vip/custom
+    tracks: [sv-uvm]
+    status: stub

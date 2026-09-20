@@ -1,0 +1,134 @@
+// =====================================================================
+// PMTPC-4 register map  (SystemRDL 2.0) — bit-accurate per Register Spec Rev 1.1.
+// Single source of truth -> PeakRDL generates regblock RTL, UVM RAL, docs, C header.
+// Reserved offsets (0x18-0x1C, 0x68-0x6C, 0x70-0xFF) are left undefined here and
+// handled as PSLVERR in the APB slave wrapper (Design Spec Section 5.4 / errata 12.4).
+// =====================================================================
+addrmap pmtpc4 {
+    name = "PMTPC-4 Timer/PWM Controller";
+    desc = "APB3 4-channel timer/PWM. Implements REQ-CORE-*, REQ-INT-*, REQ-APB-*, REQ-RST-*, REQ-OUT-*.";
+    default regwidth = 32;
+    default accesswidth = 32;
+
+    // ---------------- Global / system registers (0x00-0x1F) ----------------
+    reg {
+        name = "CTRL"; desc = "Global control (REQ-CORE-8, REQ-RST-2).";
+        field { sw=rw; hw=r; reset=0;
+                desc="MODULE_EN: 1=enabled; 0=freeze all channels (errata 12.3)."; } MODULE_EN[0:0] = 0;
+        field { sw=rw; hw=r; singlepulse; reset=0;
+                desc="SOFT_RESET: write 1 -> 1-cycle sync soft-reset pulse, self-clears (errata 12.5)."; } SOFT_RESET[1:1] = 0;
+    } CTRL @ 0x00;
+
+    reg {
+        name = "STATUS"; desc = "Global status (RO).";
+        field { sw=r; hw=w; reset=0; desc="BUSY: any channel RUNNING/LOAD/PAUSED (0 while MODULE_EN=0)."; } BUSY[0:0] = 0;
+        field { sw=r; hw=w; reset=0; desc="READY: MODULE_EN=1 and no soft-reset in progress."; } READY[1:1] = 0;
+    } STATUS @ 0x04;
+
+    reg {
+        name = "GLOBAL_IE"; desc = "Global interrupt enable (REQ-INT-2).";
+        field { sw=rw; hw=r; reset=0; desc="GLOBAL_INT_EN master gate for irq."; } GLOBAL_INT_EN[0:0] = 0;
+    } GLOBAL_IE @ 0x08;
+
+    reg {
+        name = "GLOBAL_ISR"; desc = "Aggregated masked interrupt status (RO read-back).";
+        field { sw=r; hw=w; reset=0; desc="GLOBAL_INT_STATUS = GLOBAL_IE & |(INT_STATUS & INT_ENABLE)."; } GLOBAL_INT_STATUS[0:0] = 0;
+    } GLOBAL_ISR @ 0x0C;
+
+    reg {
+        name = "PRESCALER"; desc = "Shared 16-bit prescaler (REQ-CORE-6).";
+        field { sw=rw; hw=r; reset=0; desc="Divide-by-(PRESCALER_VAL+1); 0=div1."; } PRESCALER_VAL[15:0] = 0;
+    } PRESCALER @ 0x10;
+
+    reg {
+        name = "CLK_SEL"; desc = "Clock source select (reserved for future; no effect today).";
+        field { sw=rw; hw=r; reset=0; desc="CLK_SRC_SEL: writable/readable, no functional effect."; } CLK_SRC_SEL[0:0] = 0;
+    } CLK_SEL @ 0x14;
+
+    // 0x18-0x1C reserved -> PSLVERR (handled in APB wrapper)
+
+    // ---------------- Per-channel register file (instantiated x4) ----------------
+    regfile channel_rf {
+        name = "PMTPC-4 channel";
+        reg {
+            name = "CH_CTRL"; desc = "Channel control (REQ-CORE-1..5).";
+            // precedence=hw fix (2026-09-19 audit, F3): without it, SystemRDL defaults to
+            // precedence=sw, so a software write to CH_CTRL landing on the exact same cycle
+            // as the one-shot self-clear hwclr pulse would win and silently drop the clear --
+            // CH_EN stays stuck at 1, the channel stuck in IDLE, with no way to restart except
+            // toggling CH_EN or CH_START. hwclr must win a same-cycle collision.
+            field { sw=rw; hw=r; hwclr; precedence=hw; reset=0;
+                    desc="CH_EN: 0->1 (from IDLE) triggers LOAD; hw self-clears at one-shot expiry (hwclr wins a same-cycle sw-write collision)."; } CH_EN[0:0] = 0;
+            field { sw=rw; hw=r; reset=0;
+                    desc="CH_MODE: 0=one-shot,1=periodic; sampled live at EXPIRED (errata 12.2)."; } CH_MODE[1:1] = 0;
+            field { sw=rw; hw=r; reset=0; desc="PWM_EN: enable pwm_out drive (REQ-CORE-3)."; } PWM_EN[2:2] = 0;
+            field { sw=rw; hw=r; singlepulse; reset=0;
+                    desc="CH_START: write 1 -> 1-cycle (re)start pulse, self-clears (errata 12.5)."; } CH_START[3:3] = 0;
+            field { sw=rw; hw=r; reset=0;
+                    desc="CH_PAUSE: level-sensitive freeze/resume (REQ-CORE-4, errata 12.1)."; } CH_PAUSE[4:4] = 0;
+        } CH_CTRL @ 0x0;
+        reg {
+            name = "CH_PERIOD"; desc = "Reload value (REQ-CORE-1).";
+            field { sw=rw; hw=r; reset=0; desc="PERIOD_VAL loaded into COUNT at LOAD; 0=expire next tick."; } PERIOD_VAL[15:0] = 0;
+        } CH_PERIOD @ 0x4;
+        reg {
+            name = "CH_COMPARE"; desc = "PWM compare/duty (REQ-CORE-3).";
+            field { sw=rw; hw=r; reset=0; desc="pwm high while COUNT>COMPARE_VAL."; } COMPARE_VAL[15:0] = 0;
+        } CH_COMPARE @ 0x8;
+        reg {
+            name = "CH_COUNT"; desc = "Live counter (RO, inserts 1 APB wait state, REQ-APB-3).";
+            field { sw=r; hw=w; reset=0; desc="COUNT_VAL live down-counter value."; } COUNT_VAL[15:0] = 0;
+        } CH_COUNT @ 0xC;
+    };
+    channel_rf CH0 @ 0x20;
+    channel_rf CH1 @ 0x30;
+    channel_rf CH2 @ 0x40;
+    channel_rf CH3 @ 0x50;
+
+    // ---------------- Interrupt registers (0x60-0x6F) ----------------
+    reg {
+        name = "INT_STATUS"; desc = "Raw per-channel expiry latch, W1C, set-priority (REQ-INT-1).";
+        // Split into 4 single-bit fields so each channel gets its OWN hwset line with
+        // set-priority (a single multi-bit hwset would set all bits together).
+        // `precedence=hw` here governs the SW-write (onwrite=woclr) vs hwset collision --
+        // that IS what REQ-INT-1's set-priority requires (a W1C landing the same cycle as
+        // an expiry must not drop the expiry), and is what this field's own `desc` below
+        // documents correctly.
+        // hwclr is driven by the CTRL.SOFT_RESET pulse (Design Spec Section 9 / REQ-RST-2:
+        // soft reset clears INT_STATUS).
+        // F6 CORRECTION (2026-09-19 audit -- see reports/coverage_waivers.md "Tier 2"): an
+        // earlier version of this comment claimed "hwclr must take precedence over hwset
+        // (verified in the generated field logic)" for the hwset-vs-hwclr(soft_reset)
+        // collision specifically, citing Design Spec Section 7.4 as the source of that
+        // requirement. Both claims were checked directly and found wrong: (1) Section 7.4
+        // is the PERIOD/COMPARE/CH_START edge-case list and says nothing about interrupt
+        // status or soft reset -- no such requirement exists in the golden spec to cite;
+        // (2) the generated field logic (rdl/generated/rtl/pmtpc4_regblock.sv, the
+        // CH_INT_STATUSn combinational block) checks `if(hwset) ... else if(hwclr) ...` --
+        // HWSET is evaluated first and wins a same-cycle collision, the OPPOSITE of what the
+        // comment claimed, and this is a fixed internal precedence in peakrdl-regblock that
+        // no RDL-level `precedence` property controls for hwset-vs-hwclr specifically (only
+        // sw-vs-hw). In practice this collision cannot occur anyway: pmtpc4.sv gates each
+        // channel's hwset input at the integration point (`ch_expiry[n] & ~soft_rst_pulse`),
+        // so hwset and this hwclr are structurally mutually exclusive for INT_STATUS -- that
+        // top-level AND-gate, not any field-level precedence setting, is what actually makes
+        // "an expiry pending during soft_reset is not latched" true. If that gate is ever
+        // removed, re-derive the desired behavior from spec intent (none is stated today)
+        // before relying on the field's own hwset-over-hwclr default.
+        field { sw=rw; onwrite=woclr; hw=r; hwset; hwclr; precedence=hw; reset=0;
+                desc="Channel 0 expiry latch; W1C; set wins on same-cycle clear collision; cleared by SOFT_RESET."; } CH_INT_STATUS0[0:0] = 0;
+        field { sw=rw; onwrite=woclr; hw=r; hwset; hwclr; precedence=hw; reset=0;
+                desc="Channel 1 expiry latch; W1C; set wins on same-cycle clear collision; cleared by SOFT_RESET."; } CH_INT_STATUS1[1:1] = 0;
+        field { sw=rw; onwrite=woclr; hw=r; hwset; hwclr; precedence=hw; reset=0;
+                desc="Channel 2 expiry latch; W1C; set wins on same-cycle clear collision; cleared by SOFT_RESET."; } CH_INT_STATUS2[2:2] = 0;
+        field { sw=rw; onwrite=woclr; hw=r; hwset; hwclr; precedence=hw; reset=0;
+                desc="Channel 3 expiry latch; W1C; set wins on same-cycle clear collision; cleared by SOFT_RESET."; } CH_INT_STATUS3[3:3] = 0;
+    } INT_STATUS @ 0x60;
+
+    reg {
+        name = "INT_ENABLE"; desc = "Per-channel interrupt mask (REQ-INT-2).";
+        field { sw=rw; hw=r; reset=0; desc="CH_INT_EN[n]: allow channel n to contribute to irq/GLOBAL_ISR."; } CH_INT_EN[3:0] = 0;
+    } INT_ENABLE @ 0x64;
+
+    // 0x68-0x6C and 0x70-0xFF reserved -> PSLVERR (handled in APB wrapper)
+};
