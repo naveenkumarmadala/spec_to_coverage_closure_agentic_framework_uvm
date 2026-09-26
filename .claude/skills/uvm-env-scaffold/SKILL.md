@@ -47,7 +47,6 @@ ips/<ip>/dv/sv/
           <ip>_binds.sv   (module <ip>_binds: every white-box SVA/coverage bind — a separate top)
           <ip>_dump.sv    (module <ip>_dump: +DUMP waveform dump — a separate top)
    <ip>_test_pkg.sv   filelist.f
-ips/<ip>/formal/         (optional) SymbiYosys harness(es) + .sby for control-logic proofs
 ```
 
 ## Component responsibilities (the "exact architecture")
@@ -73,8 +72,6 @@ ips/<ip>/formal/         (optional) SymbiYosys harness(es) + .sby for control-lo
 - **Test library** — `base_test` builds env + configs; one test per file, each running vseq(s).
 - **SVA layer** — bound modules asserting protocol timing, datapath/waveform rules, aggregation, and
   reset; carry white-box covergroups too.
-- **Formal (optional)** — a SymbiYosys harness proving control-FSM safety. Free (Yosys); keep
-  properties simple (open-source SVA support is partial).
 
 ## Standard register-verification suite (generate for EVERY IP — RAL/RDL-derived, not hand-coded)
 
@@ -121,7 +118,6 @@ Rules that keep this generic:
 ## Division of checking (play to each tool's strength)
 - **Scoreboard** → register + protocol transaction correctness.
 - **SVA** → cycle-accurate relationships (waveform rule, aggregation, handshake, set-priority).
-- **Formal (optional)** → exhaustive corners on control logic.
 - **Coverage** → reg fields + FSM states/transitions + scenario crosses, rolled up to the vPlan/REQ.
 
 ## Reusable-UVC correctness (bake into every bus driver)

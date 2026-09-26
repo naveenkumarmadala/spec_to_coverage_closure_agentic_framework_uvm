@@ -1,0 +1,21 @@
+# pmtpc4 static gate — PASS  (Vivado-only: Verible + xsim + Vivado synth)
+# DUT files: 6 (4 hand-written)  top: pmtpc4  size: 499 LUT / 354 FF on xc7a100tcsg324-1
+
+verible  PASS  failing=0 waived=0 info=0
+rtl-scan PASS  failing=0 waived=0 info=0
+xsim     PASS  failing=0 waived=0 info=1
+    info   [XSIM-43-3431] x1: xelab notice about C-compiler environment variables (host setup, not RTL)
+             One or more environment variables have been detected which affect the operation of the C compiler. These are typically not set in standard installations and are not tested by AMD, however they may be appropriate for your system, so the flow will attempt to continue.  If errors occur, try running xelab with the "-mt off -v 1" switches to see more information from the C compiler. The following environment variables have been detected:
+vivado   PASS  failing=0 waived=0 info=35
+    info   [Synth-8-7129] x33: port unconnected / no load: expected for generic blocks with unused bits (e.g. upper bus bits); listed so an unexpected one is visible
+             Port soft_reset in module pmtpc4_prescaler is either unconnected or has no load
+             Port s_cpuif_wr_data[31] in module pmtpc4_regblock is either unconnected or has no load
+             Port s_cpuif_wr_data[30] in module pmtpc4_regblock is either unconnected or has no load
+             Port s_cpuif_wr_data[29] in module pmtpc4_regblock is either unconnected or has no load
+             Port s_cpuif_wr_data[28] in module pmtpc4_regblock is either unconnected or has no load
+             Port s_cpuif_wr_data[27] in module pmtpc4_regblock is either unconnected or has no load
+             ... 27 more (dv/static_gate/)
+    info   [Synth-8-7080] x1: parallel-synthesis criteria not met (tool performance note)
+             Parallel synthesis criteria is not met
+    info   [DRC-23-814] x1: out-of-context DRC notice: connectivity DRCs needing a full chip are skipped
+             Not all possible (connectivity based) DRCs may have been run because this design is seen as Out of Context.

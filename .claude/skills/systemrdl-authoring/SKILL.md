@@ -58,12 +58,9 @@ addrmap apb_gpio {
 ## Generate (WSL2, venv active)
 
 ```bash
-cd ips/<ip>/rdl
-peakrdl regblock  <ip>.rdl -o generated/rtl --cpuif apb4-flat   # or axi4-lite, ahb, ...
-peakrdl uvm       <ip>.rdl -o generated/<ip>_ral_pkg.sv
-peakrdl html      <ip>.rdl -o generated/html
-peakrdl c-header  <ip>.rdl -o generated/<ip>.h
-cd -
+# regblock RTL + UVM RAL + HTML + C header; options from ip_config.yaml registers.regblock
+# (cpuif defaults to the bus's registry cpuif, reset style to the bus reset) -- never hand-typed
+env/.venv/bin/python3 flow/scripts/gen_regs.py ips/<ip>
 # register-bit toggle config for the reusable reg_bit_toggle_cov (the RDL's singlepulse fields)
 env/.venv/bin/python3 flow/scripts/gen_reg_toggle_cfg.py ips/<ip>   # -> dv/sv/env/<ip>_reg_toggle_cfg.svh
 ```

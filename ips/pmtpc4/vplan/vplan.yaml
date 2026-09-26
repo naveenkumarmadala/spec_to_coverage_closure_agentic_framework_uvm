@@ -1876,9 +1876,10 @@ items:
     feature: "RTL elaborates for synthesis with no simulator-specific directives (REQ-SYNTH-1)."
     traces_to: [REQ-SYNTH-1]
     method: static
-    coverage: { kind: static_gate, checks: [verible_lint, verilator_lint, sv2v, yosys_elaborate] }
-    checker: "Verilator --lint-only -Wall clean + Yosys `hierarchy -check` / `check -assert` on the
-      sv2v-flattened netlist"
+    coverage: { kind: static_gate, checks: [verible_lint, xsim_elaborate, vivado_synth] }
+    checker: "flow/scripts/static_gate.py PASS (reports/static_gate.txt): Verible lint clean, xsim
+      xvlog/xelab of the DUT clean, Vivado synth_design with no failing warning and 0 latches; RTL
+      carries no tool-specific pragmas"
     tests: [static_gate]
     status: covered
 

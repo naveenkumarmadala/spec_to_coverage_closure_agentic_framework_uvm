@@ -9,8 +9,11 @@ Build the register layer for IP `$1`.
 1. Delegate to the **register-designer** agent (using the **systemrdl-authoring** skill) to author
    `ips/$1/rdl/$1.rdl` from the design spec's register-to-function map. Keep REQ/SPEC IDs in each
    field `desc`.
-2. From WSL2 with the venv active, run PeakRDL to generate (into `ips/$1/rdl/generated/`): regblock
-   RTL (`--cpuif` matching `bus.protocol`), the UVM RAL package, HTML docs, and the C header.
+2. Record any non-default PeakRDL options in `ip_config.yaml` under `registers.regblock` (cpuif,
+   module/package name, reset style — defaults come from `bus.protocol` and the bus reset), then
+   generate into `ips/$1/rdl/generated/` (regblock RTL, UVM RAL package, HTML docs, C header) with
+   `env/.venv/bin/python3 flow/scripts/gen_regs.py ips/$1`. Never hand-type PeakRDL options: the
+   outputs are git-ignored, so the config is the only way to reproduce them.
 3. Confirm the RDL compiles cleanly; report any PeakRDL errors verbatim and fix the RDL.
 4. Generate the register-bit toggle config (the RDL's `singlepulse` fields, read by the reusable
    `reg_bit_toggle_cov`): `env/.venv/bin/python3 flow/scripts/gen_reg_toggle_cfg.py ips/$1`.

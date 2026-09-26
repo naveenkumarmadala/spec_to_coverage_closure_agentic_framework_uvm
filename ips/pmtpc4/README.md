@@ -21,7 +21,7 @@ UVM environment compiles, elaborates, and runs on xsim.
 | RTL | [`rtl/`](rtl/) (apb_slave, prescaler, channel, top) | ✅ authored, synthesizable; **4 design bugs fixed** (see below) |
 | vPlan | [`vplan/vplan.yaml`](vplan/vplan.yaml) | ✅ every REQ traced |
 | Env (SV/UVM) | [`dv/sv/`](dv/sv/) | ✅ **runs on xsim** — all 5 tests green (UVM_ERROR 0, 0 SVA fails, scoreboard errors 0) |
-| Static gate | Verible lint + sv2v + Yosys elaboration | ✅ clean |
+| Static gate | Verible lint + xsim elaboration + Vivado synthesis | ✅ PASS |
 | Seeded regression | [`reports/regression.txt`](reports/) | ✅ **125/125 runs** (5 tests × 25 seeds), 0 failures |
 | Coverage | [`reports/coverage_summary.md`](reports/coverage_summary.md) | ✅ **functional 100% net of 1 waiver**; code statement 99% (branch/cond/toggle partial — structural, see report) |
 

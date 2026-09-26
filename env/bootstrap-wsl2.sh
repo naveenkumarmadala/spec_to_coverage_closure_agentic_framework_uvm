@@ -6,10 +6,10 @@
 # which is a MANUAL install (see env/README.md) and is NOT installed here — this
 # script installs everything else and then checks that xsim is reachable.
 #
-# Installs: Verible (lint), Yosys (synth elaboration), sv2v, Icarus + Verilator
-# (optional lint/elab helpers only), and a Python venv (env/.venv) with PeakRDL
-# for register generation and the flow scripts. NO cocotb / pyuvm — the Python
-# verification track has been retired.
+# Installs: Verible (lint) and a Python venv (env/.venv) with PeakRDL for register
+# generation and the flow scripts. Everything else — elaboration, synthesizability
+# (static gate), simulation, coverage — runs on Vivado (xvlog/xelab/xsim/xcrg and
+# vivado synth_design). NO cocotb / pyuvm / Verilator / Yosys / sv2v / Icarus.
 #
 # Usage (from a WSL2 Ubuntu shell, repo root or env/ dir):
 #     bash env/bootstrap-wsl2.sh            # full install
@@ -22,7 +22,6 @@ REPO_ROOT="$(cd "$HERE/.." && pwd)"
 TOOLS_DIR="$HERE/_tools"          # git-ignored local tool downloads
 VENV_DIR="$HERE/.venv"
 VERIBLE_TAG="${VERIBLE_TAG:-v0.0-3946-g851d3ff4}"
-SV2V_TAG="${SV2V_TAG:-v0.0.13}"
 VIVADO_SETTINGS="${VIVADO_SETTINGS:-/tools/Xilinx/2025.1/Vivado/settings64.sh}"
 
 log()  { printf '\033[1;34m[bootstrap]\033[0m %s\n' "$*"; }
@@ -30,8 +29,8 @@ warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
 check_versions() {
-  log "Static / helper tool versions:"
-  for t in verible-verilog-lint yosys sv2v verilator iverilog python3; do
+  log "Static tool versions:"
+  for t in verible-verilog-lint python3; do
     if have "$t"; then printf '  %-22s %s\n' "$t" "$("$t" --version 2>&1 | head -1)";
     else printf '  %-22s \033[1;31mMISSING\033[0m\n' "$t"; fi
   done
@@ -39,6 +38,8 @@ check_versions() {
   if ! have xvlog && [ -f "$VIVADO_SETTINGS" ]; then source "$VIVADO_SETTINGS" || true; fi
   if have xvlog; then printf '  %-22s %s\n' "xvlog/xsim" "$(xsim --version 2>&1 | head -1)";
   else printf '  %-22s \033[1;31mMISSING\033[0m (install Vivado ML Standard; see env/README.md)\n' "xsim"; fi
+  if have vivado; then printf '  %-22s %s\n' "vivado (synth gate)" "$(vivado -version 2>&1 | head -1)";
+  else printf '  %-22s \033[1;31mMISSING\033[0m (same Vivado install)\n' "vivado"; fi
   if [[ -d "$VENV_DIR" ]]; then
     # shellcheck disable=SC1091
     source "$VENV_DIR/bin/activate"
@@ -62,7 +63,7 @@ log "Installing apt dependencies (sudo may prompt)…"
 sudo apt-get update -y
 sudo apt-get install -y --no-install-recommends \
   git make g++ python3 python3-pip python3-venv \
-  iverilog yosys verilator gtkwave wget curl unzip ca-certificates
+  gtkwave wget curl unzip ca-certificates
 
 # --- 2. Verible (prebuilt release) -----------------------------------------
 if ! have verible-verilog-lint; then
@@ -76,19 +77,7 @@ if ! have verible-verilog-lint; then
   fi
 fi
 
-# --- 3. sv2v (prebuilt release) --------------------------------------------
-if ! have sv2v; then
-  log "Fetching sv2v $SV2V_TAG…"
-  SV_URL="https://github.com/zachjs/sv2v/releases/download/${SV2V_TAG}/sv2v-Linux.zip"
-  if wget -q "$SV_URL" -O "$TOOLS_DIR/sv2v.zip"; then
-    unzip -oq "$TOOLS_DIR/sv2v.zip" -d "$TOOLS_DIR"
-    sudo cp "$TOOLS_DIR"/sv2v-*/sv2v /usr/local/bin/
-  else
-    warn "Could not download sv2v. Update SV2V_TAG and re-run."
-  fi
-fi
-
-# --- 4. Python venv: PeakRDL + flow scripting (NO cocotb/pyuvm) ------------
+# --- 3. Python venv: PeakRDL + flow scripting (NO cocotb/pyuvm) ------------
 log "Creating Python venv at $VENV_DIR…"
 python3 -m venv "$VENV_DIR"
 # shellcheck disable=SC1091
@@ -100,7 +89,7 @@ python3 -m pip install --quiet \
   "jinja2>=3.1" "pyyaml>=6.0" "jsonschema>=4.0" "openpyxl>=3.1"
 deactivate
 
-# --- 5. Vivado xsim reminder ----------------------------------------------
+# --- 4. Vivado reminder ----------------------------------------------
 if ! ( have xvlog || { [ -f "$VIVADO_SETTINGS" ] && source "$VIVADO_SETTINGS" && have xvlog; } ); then
   warn "Vivado xsim not found. It is the UVM simulator for this flow and must be installed"
   warn "manually (free 'Vivado ML Standard', Linux, into WSL2). See env/README.md."

@@ -48,6 +48,10 @@ def sources_from_filelist(sv_dir: Path):
         p = (sv_dir / line).resolve()
         if p.exists():
             srcs.append(p)
+        else:
+            # a file the compile uses but this script cannot see would silently drop out of
+            # the DUT/verification classification (e.g. a VIP left unwaived) -- say so
+            print(f"WARNING: gen_exclusions: filelist entry not found: {line}", file=sys.stderr)
     return srcs
 
 

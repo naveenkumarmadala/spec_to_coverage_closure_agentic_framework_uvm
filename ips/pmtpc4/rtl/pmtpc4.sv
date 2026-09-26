@@ -27,14 +27,11 @@ module pmtpc4 (
     // reports/coverage_waivers.md "Tier 3"/item 3): TRIED eliminating this wire via a
     // hierarchical port reference (u_rb's input connected directly to u_apb.cpuif_wr_data,
     // no top-level net) to match the technique that fixed cpuif_rd_data_pad. REVERTED after
-    // the full static gate caught a real problem the syntax checker alone did not: Verible
-    // and Verilator both accepted it cleanly, but `yosys` (via the project's mandatory sv2v
-    // pre-flatten step) reported "Resizing cell port pmtpc4.u_rb.s_cpuif_wr_data from 1 bits
-    // to 32 bits" -- sv2v does not correctly preserve a hierarchical port reference's width
-    // when flattening SystemVerilog to Verilog, silently defaulting to 1 bit. That would have
-    // been a severe, synthesis-breaking correctness bug (write data truncated to 1 bit) had
-    // it gone in without running the full lint -> elaboration gate, not just a syntax check.
-    // Left as the documented, accepted tool artifact it already was; not fixed.
+    // the static gate of the time caught a real problem the syntax checkers alone did not:
+    // the SystemVerilog-to-Verilog converter that gate used before synthesis silently
+    // truncated the hierarchical port reference to 1 bit ("Resizing cell port
+    // pmtpc4.u_rb.s_cpuif_wr_data from 1 bits to 32 bits") -- write data truncated to 1 bit
+    // had it gone in. Kept as a named wire, which every tool reads unambiguously.
     // cpuif_rd_data is split into active/pad halves -- no combined 32-bit
     // signal is declared at all, so there is nothing redundant left for a
     // coverage exclusion to either miss or over-waive. Every register/field
@@ -78,8 +75,7 @@ module pmtpc4 (
     // wait-states, single-cycle ack): its req_stall_wr/rd, rd_ack/err, and
     // wr_ack/err ports always resolve combinationally to constants and carry
     // no information the APB wrapper needs, so they are intentionally left
-    // unconnected. Scoped waiver -- not a blanket suppression.
-    /* verilator lint_off PINCONNECTEMPTY */
+    // unconnected.
     pmtpc4_regblock u_rb (
         .clk               (pclk),
         .arst_n            (presetn),
@@ -98,7 +94,6 @@ module pmtpc4 (
         .hwif_in           (hwif_in),
         .hwif_out          (hwif_out)
     );
-    /* verilator lint_on PINCONNECTEMPTY */
 
     // ------------------------------------------------------------------
     // Shared prescaler
@@ -190,10 +185,9 @@ module pmtpc4 (
     // Drive regblock hardware inputs
     // ------------------------------------------------------------------
     always_comb begin
-        // NOTE: a bare `'0` scalar assign to an unpacked-struct signal fails to
-        // codegen on Verilator (through at least 5.038; C++ operator= mismatch),
-        // so use an explicit assignment pattern instead -- semantically
-        // identical, and still synthesizable (Yosys/sv2v handle both forms fine).
+        // NOTE: an explicit assignment pattern rather than a bare `'0` on an
+        // unpacked-struct signal: semantically identical, synthesizable, and
+        // unambiguous for every tool (some reject a bare '0 here).
         hwif_in = '{default: '0};
         hwif_in.STATUS.BUSY.next  = module_en & (ch_busy[0] | ch_busy[1] | ch_busy[2] | ch_busy[3]);
         hwif_in.STATUS.READY.next = module_en & ~soft_rst_pulse;

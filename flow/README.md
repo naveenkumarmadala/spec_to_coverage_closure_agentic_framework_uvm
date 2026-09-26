@@ -7,7 +7,6 @@ Turns an `ip_config.yaml` into concrete artifacts and drives the free toolchain.
 | `config/` | `ip_config` JSON schema + annotated example + validator | **P0 (done)** |
 | `templates/` | Jinja templates for the SystemVerilog UVM env, testbench, filelists | P3 |
 | `scripts/` | Runners: config validation, xsim compile/elab/run, seeded regression, coverage merge | P0→P5 |
-| `tools/` | Thin wrappers / shared configs (e.g. verilator_waivers.vlt) | P2 |
 
 Everything here is IP-agnostic: it reads config + templates, never hardcodes an IP.
 

@@ -105,7 +105,7 @@ flowchart TD
     REG --> RDL["*.rdl → PeakRDL →<br/>regblock RTL + UVM RAL + C header + HTML docs"]
     RDL --> RTLDES["rtl-designer"]
     RTLDES --> RTLFILES["rtl/*.sv<br/>(instantiates the regblock)"]
-    RTLFILES --> LINT{{"lint-static-checker<br/>STATIC GATE:<br/>Verible → Verilator lint → Yosys"}}
+    RTLFILES --> LINT{{"lint-static-checker<br/>STATIC GATE:<br/>Verible → xsim elab → Vivado synth"}}
     LINT -->|FAIL: findings back to rtl-designer| RTLDES
     LINT -->|PASS| VPLAN["verification-planner<br/>(vplan-schema skill)"]
     VPLAN --> VPLANYAML["vplan.yaml<br/>(every REQ ↦ ≥1 coverage item)"]
@@ -153,7 +153,7 @@ flowchart TD
 | `design-architect` | After requirements exist | `requirements.md`, `ip_config.yaml` | `spec/design_spec.md` — block diagram, datapath/control, register-to-function map |
 | `register-designer` | After the design spec defines the register map | `design_spec.md` | `rdl/<ip>.rdl` + PeakRDL-generated regblock RTL, UVM RAL, C header, HTML docs |
 | `rtl-designer` | After registers exist | `design_spec.md`, the generated regblock | `rtl/*.sv` — synthesizable RTL instantiating the regblock |
-| `lint-static-checker` | After any RTL change, before simulation | RTL + generated regblock | Pass/fail **static gate**: Verible lint → Verilator lint-only → Yosys elaboration |
+| `lint-static-checker` | After any RTL change, before simulation | RTL + generated regblock | Pass/fail **static gate** (`static_gate.py`): Verible lint → xsim elaboration → Vivado synthesis |
 | `design-reviewer` | RTL claimed complete, or changed later (incl. by `coverage-closure`) | Spec docs read independently, then the RTL | Spec-conformance findings + a traceability-completeness tally — **reviews, never fixes** |
 | `verification-planner` | After the design spec + registers exist | `requirements.md`, `design_spec.md`, `<ip>.rdl` | `vplan/vplan.yaml` — every requirement mapped to ≥1 concrete coverage item |
 | `tb-architect` | After the vPlan exists and RTL passes the static gate | `vplan.yaml`, `ip_config.yaml`, reusable VIP | The `dv/sv/` SystemVerilog UVM environment, smoke-tested on xsim |
@@ -251,8 +251,7 @@ complete, before treating either as signed off.
 | Register spec → RTL, UVM RAL, C headers, docs | **PeakRDL** (SystemRDL 2.0) |
 | Lint / format / parse | **Verible** |
 | **UVM simulation (compile / elaborate / run / coverage)** | **AMD Vivado xsim** (free ML Standard; `xvlog`/`xelab`/`xsim`/`xcrg`) |
-| Fast lint / elaboration helper (not UVM sign-off) | **Verilator**, **Icarus Verilog** |
-| Synthesizability signoff | **Yosys**, **sv2v** |
+| Static gate: elaboration + synthesizability | **AMD Vivado** (`xvlog`/`xelab`, `synth_design`) + **Verible** |
 
 Vivado xsim is a **manual install** (free, Linux, into WSL2); everything else is installed by the
 bootstrap. See [`env/`](env/) for pinned versions, the WSL2 bootstrap, and the Vivado install steps.
@@ -288,8 +287,7 @@ xsim build/coverage dirs, `reports/_runs`, `reports/_cov` — omitted; see [`.gi
 │
 ├── flow/                          the generic engine (protocol-agnostic, no per-IP code)
 │   ├── config/                   ip_config.schema.json + ip_config.example.yaml + vip_registry.yaml
-│   ├── scripts/                  validate_config.py, xsim_flow.sh, run_regression.py
-│   └── tools/                    tool wrappers, incl. verilator_waivers.vlt (regblock lint waivers)
+│   └── scripts/                  validate_config.py, static_gate.py, xsim_flow.sh, run_regression.py
 │
 ├── vip/                           reusable Verification IP, built once, instantiated from config
 │   └── apb/sv/                   apb_if, apb_agent(+driver/monitor/seqr), apb_coverage,
@@ -304,7 +302,6 @@ xsim build/coverage dirs, `reports/_runs`, `reports/_cov` — omitted; see [`.gi
 │       ├── rtl/                   pmtpc4.sv, pmtpc4_apb_slave.sv, pmtpc4_channel.sv, pmtpc4_prescaler.sv
 │       ├── vplan/vplan.yaml       every requirement traced
 │       ├── dv/sv/                 the SystemVerilog UVM env — env/ seq/ sva/ test/ tb/, filelist.f
-│       ├── formal/                SymbiYosys harness (optional; documented if solver absent)
 │       └── reports/               regression + coverage output (git-ignored, regenerated)
 │
 ├── env/                            toolchain bootstrap (WSL2 + Docker) + Vivado install steps
@@ -323,7 +320,7 @@ Code, Vivado xsim, and the toolchain from a blank machine. The steps below assum
 
 1. Install the free toolchain, then Vivado xsim (from a WSL2 Ubuntu shell):
    ```bash
-   bash env/bootstrap-wsl2.sh      # Verible, Yosys, sv2v, Verilator, PeakRDL venv
+   bash env/bootstrap-wsl2.sh      # Verible + PeakRDL venv (everything else is Vivado)
    # then install Vivado ML Standard (xsim) manually — see env/README.md
    ```
 2. Ingest a requirement spec — the front door:

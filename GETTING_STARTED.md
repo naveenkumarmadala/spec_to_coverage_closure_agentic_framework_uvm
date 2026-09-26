@@ -16,7 +16,7 @@ timer/PWM controller) whose SystemVerilog UVM environment you can compile, elabo
 ## Step 0 — Three things you're about to use, in one paragraph each
 
 **WSL2** (Windows Subsystem for Linux) is a real Linux system that runs alongside Windows. The
-toolchain (Vivado xsim, PeakRDL, Verible, Yosys…) runs on Linux; WSL2 is how you run it without a
+toolchain (Vivado, PeakRDL, Verible) runs on Linux; WSL2 is how you run it without a
 separate machine.
 
 **Vivado xsim** is AMD's SystemVerilog simulator. It is the one tool here that isn't open-source, but
@@ -73,9 +73,9 @@ for faster I/O), then run:
 bash env/bootstrap-wsl2.sh
 ```
 
-This installs (all free): **Verible** (lint), **Yosys** + **sv2v** (synthesizability), **Verilator**
-and **Icarus** (optional fast lint/elab helpers — *not* the UVM sim), and a Python venv with
-**PeakRDL** (SystemRDL→RTL/RAL) and the flow's scripting deps. **No cocotb/pyuvm** — verification is
+This installs (all free): **Verible** (lint) and a Python venv with **PeakRDL** (SystemRDL→RTL/RAL)
+and the flow's scripting deps. Everything else — the static gate's elaboration and synthesis,
+simulation, coverage — runs on Vivado, installed in the next step. **No cocotb/pyuvm** — verification is
 pure SystemVerilog UVM on xsim.
 
 It prints a version table at the end; if anything says `MISSING`, re-run it (safe to repeat).

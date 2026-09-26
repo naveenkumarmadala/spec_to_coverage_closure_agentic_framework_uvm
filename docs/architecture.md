@@ -19,7 +19,7 @@ runs against design's RTL. See §4 below for the agents on each thread and their
 reviewers.
 
 Out of scope: physical design, synthesis-for-production, timing signoff, and all commercial EDA
-(Cadence/Synopsys/Siemens). Synthesizability is checked (Yosys) only as a *front-end* quality gate.
+(Cadence/Synopsys/Siemens). Synthesizability is checked (Vivado synthesis) only as a *front-end* quality gate.
 
 ## 2. Design principles
 
@@ -38,8 +38,9 @@ Out of scope: physical design, synthesis-for-production, timing signoff, and all
    the requirement level.
 4. **Hard quality gates.** RTL is agent-authored but accepted only after lint → elaboration →
    simulation → coverage. Failures are reported with real tool output, never hidden.
-5. **Free toolchain, honestly.** Everything runs on WSL2 with PeakRDL/Verible/Yosys and the UVM
-   simulator **Vivado xsim** (free ML Standard). Verilator/Icarus are optional lint/elab helpers only.
+5. **Free toolchain, honestly.** Everything runs on WSL2 with PeakRDL, Verible and **Vivado** (free ML
+   Standard): xsim for UVM simulation and coverage, xelab + `synth_design` for the static gate. No
+   Verilator, Icarus, Yosys or sv2v.
    Where xsim can't run a construct, it's fixed or the gap recorded — never a fallback to a Python
    track or a paid simulator.
 
@@ -50,8 +51,7 @@ Out of scope: physical design, synthesis-for-production, timing signoff, and all
 | Register source-of-truth → RTL/RAL/headers/docs | PeakRDL (SystemRDL 2.0) |
 | Lint / format / parse | Verible |
 | **SV/UVM simulation + coverage** | **AMD Vivado xsim** (`xvlog`/`xelab`/`xsim`/`xcrg`; free ML Standard) |
-| Fast lint/elaboration helper (not UVM sign-off) | Verilator, Icarus Verilog |
-| Synthesizability elaboration | Yosys (+ sv2v) |
+| Static gate: elaboration + synthesizability | Vivado `xvlog`/`xelab` + `synth_design` (`flow/scripts/static_gate.py`) |
 
 Pinned in [`env/tool-versions.yaml`](../env/tool-versions.yaml).
 
@@ -160,7 +160,7 @@ their `VP-` id. The closure report inverts this chain to prove every requirement
 | **P0** | Repo skeleton, WSL2 bootstrap, `ip_config` schema, agents/skills/commands | **Done** |
 | **P0.1** | Alignment: spec-ingestion front door, pluggable VIP registry, subsystem-ready schema, `examples/` reframe | **Done** |
 | P1 | Spec-doc ingestion (real parsing) → confirmed config; requirements DB + design spec | Next |
-| P2 | SystemRDL + PeakRDL integration; RTL generation; static gate; `flow/tools` wrappers | |
+| P2 | SystemRDL + PeakRDL integration; RTL generation; static gate | |
 | P3 | `flow/templates` env generation; first bus VIP (APB) in registry; SV/UVM smoke on xsim; RAL verif | |
 | P4 | vPlan realization; directed + constrained-random tests | |
 | P5 | Regression runner; coverage merge/report; closure loop to goal | |
@@ -183,8 +183,8 @@ the hooks exist now so nothing needs reworking when it lands.
 ## 10. Known risks & mitigations
 
 - **Open-source UVM simulator gap** → resolved by adopting Vivado xsim (free ML Standard), the only
-  free/local/headless simulator that runs complete UVM; Verilator's incomplete UVM support is why it's
-  a lint/elab helper here, not the sign-off sim. Its one gap (no assertion-coverage report) is handled
+  free/local/headless simulator that runs complete UVM (Verilator's UVM support was incomplete, and
+  it is no longer used anywhere in the flow). Its one gap (no assertion-coverage report) is handled
   by routing assertion evidence through the scoreboard + SVA `cover`.
 - **LLM-authored RTL quality** → hard gates (lint/elaborate/sim/coverage) + human PR review; RTL is
   never "done" on assertion, only on green gates.

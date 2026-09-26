@@ -5,8 +5,9 @@
 # SIMULATOR POLICY: verification is standard SystemVerilog UVM, run on AMD Vivado
 # xsim — the only free, local, headless simulator that runs COMPLETE UVM with
 # native constrained randomization (rand/constraint/dist), functional + code
-# coverage (xelab -cov + xcrg merge), SVA, and timing. Verilator and Icarus are
-# kept ONLY as fast lint/elaboration helpers; they do NOT run full UVM here.
+# coverage (xelab -cov + xcrg merge), SVA, and timing. The static RTL gate is also
+# Vivado-only (Verible lint + xvlog/xelab + vivado synth_design, see
+# flow/scripts/static_gate.py). Verilator, Icarus, Yosys and sv2v are NOT used.
 # The pyuvm/cocotb track has been retired.
 
 # --- UVM simulator (primary sign-off) ---------------------------------------
@@ -37,30 +38,18 @@ uvm:
     path: env/_tools/uvm-core          # Accellera UVM reference sources (src/)
     version: "2020-1.1 (UVM-IEEE bundled)"
 
-# --- static / synthesis toolchain (unchanged) -------------------------------
+# --- static gate (flow/scripts/static_gate.py) --------------------------------
 toolchain:
   verible:
     version: "v0.0-3946-g851d3ff4"     # lint / format / syntax; prebuilt release binary
     source: "https://github.com/chipsalliance/verible/releases"
     build: prebuilt
-  yosys:
-    version: "0.46"                    # synthesizability signoff (elaboration)
-    source: "https://github.com/YosysHQ/yosys"
-    build: apt_or_oss_cad_suite
-  verilator:
-    version: "v5.038"                  # OPTIONAL fast lint/elaboration helper only (NOT a UVM sim)
-    source: "https://github.com/verilator/verilator"
-    build: apt_or_source
-    role: "lint/elab helper — never the UVM sign-off simulator"
-  icarus_verilog:
-    version: "12.0"                    # OPTIONAL RTL cross-check only
-    source: "https://github.com/steveicarus/iverilog"
-    build: apt_or_source
-    role: "optional cross-check"
-  sv2v:
-    version: "v0.0.13"                 # SystemVerilog -> Verilog when needed by a downstream tool
-    source: "https://github.com/zachjs/sv2v/releases"
-    build: prebuilt
+  vivado_synth:
+    # same Vivado install as xsim above: `vivado -mode batch` + synth_design,
+    # out-of-context, only to judge synthesizability (latches, multi-driven /
+    # undriven nets, width mismatches, loops) — not an FPGA implementation
+    tool: vivado
+    part: "xc7a100tcsg324-1"           # override with STATIC_GATE_PART; any installed 7-series part
 
 # --- Python (register generation + flow scripting only; NO cocotb/pyuvm) ----
 python:

@@ -7,7 +7,7 @@ One environment: standard **SystemVerilog UVM** (`sv/`), derived from the
 >
 > | Item | State |
 > |---|---|
-> | Static gate (Verible + Verilator lint + sv2v + Yosys elaboration) | ✅ clean |
+> | Static gate (Verible + xsim elaboration + Vivado synthesis — `reports/static_gate.txt`) | ✅ PASS |
 > | SV/UVM compile + elaborate on xsim (`-L uvm`) | ✅ clean |
 > | All 5 tests (sanity/reg/channel/irq/error) | ✅ green — UVM_ERROR 0, UVM_FATAL 0, 0 SVA fails, scoreboard errors 0 |
 > | Seeded regression | ✅ **125/125 runs** (5 tests × 25 seeds), 0 failures |
@@ -28,7 +28,7 @@ sv/tb/         tb_top (DUT + IFs + SVA binds + run_test)
 sv/filelist.f  xsim compile list (`-i` include dirs, `#` comments; UVM via -L uvm)
 ```
 Checking is split by strength: **scoreboard** = register/protocol transactions; **SVA** = cycle rules
-(APB handshake, PWM waveform, IRQ aggregation, MODULE_EN freeze, reset); **formal (optional)** = FSM corners.
+(APB handshake, PWM waveform, IRQ aggregation, MODULE_EN freeze, reset).
 
 ## Test-writer hooks (infrastructure + the tests that now use it)
 
@@ -71,22 +71,18 @@ bash env/bootstrap-wsl2.sh                             # helper tools + PeakRDL 
 source /tools/Xilinx/2025.1/Vivado/settings64.sh
 ```
 
-## 2. Static gate (lint + synth elaboration)
+## 2. Static gate (Vivado-only: lint + elaboration + synthesizability)
 
-Run from the repo root. The DUT RTL set lives in [`filelist.f`](filelist.f) (package before importers).
-Shared, generic Verilator waivers for known peakrdl-regblock false-positives live in
-[`flow/tools/verilator_waivers.vlt`](../../../flow/tools/verilator_waivers.vlt).
+Run from the repo root. The DUT files are the RTL entries of [`sv/filelist.f`](sv/filelist.f) (the
+same list simulation compiles), so there is no second list to keep in sync.
 
 ```bash
-source env/.venv/bin/activate
-verible-verilog-lint ips/pmtpc4/rtl/*.sv
-verilator --lint-only -Wall -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL \
-  flow/tools/verilator_waivers.vlt -f ips/pmtpc4/dv/filelist.f --top-module pmtpc4
-mkdir -p ips/pmtpc4/dv/generated
-sv2v -w ips/pmtpc4/dv/generated/pmtpc4_yosys_flat.v \
-  $(grep -v '^[[:space:]]*#' ips/pmtpc4/dv/filelist.f | grep -v '^[[:space:]]*-i')
-yosys -p "read_verilog -sv ips/pmtpc4/dv/generated/pmtpc4_yosys_flat.v; hierarchy -top pmtpc4 -check"
+python3 flow/scripts/static_gate.py ips/pmtpc4    # -> reports/static_gate.txt
 ```
+Verible lint (hand-written RTL) → xsim `xvlog`/`xelab` of the DUT alone → Vivado `synth_design`
+(out-of-context): latches, multi-driven/undriven nets, port-width mismatches, loops. Deny-by-default.
+The only informational note on pmtpc4 worth knowing: `pmtpc4_prescaler.soft_reset` has no load —
+intentional since the F5 fix (soft reset must not disturb the prescaler; see the module header).
 
 ## 3. UVM simulation on xsim
 
@@ -147,11 +143,6 @@ xcrg cross-db merge is broken on xsim 2025.1 and xsim overwrites the shared db p
 
 **xcrg notes (xsim 2025.1):** point `-cov_db_dir` at the *parent* dir, **pre-create the `-report_dir`**
 (xcrg won't create the code-cov report dir itself), run from a writable cwd.
-
-## 4. Formal (optional — Yosys/SymbiYosys)
-```bash
-cd ips/pmtpc4/formal && sby -f pmtpc4_channel.sby     # FSM safety: valid state, freeze-holds, reachability
-```
 
 ## Coverage closure
 Regression logs land in [`../reports/_runs/`](../reports/) and merged coverage under

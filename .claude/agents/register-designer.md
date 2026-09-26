@@ -15,11 +15,13 @@ generates RTL, the UVM RAL model, C headers, and docs — so they can never drif
 ## Outputs
 1. **`ips/<ip>/rdl/<ip>.rdl`** — hand-authored SystemRDL 2.0 addrmap. Each register/field carries a
    `desc` that references the SPEC/REQ IDs it implements (put the ID in the desc text).
-2. **Generated** (into `ips/<ip>/rdl/generated/`, git-ignored until promoted), via PeakRDL:
-   - regblock RTL: `peakrdl regblock <ip>.rdl -o generated/rtl --cpuif <apb4|axi4-lite|...>`
-   - UVM RAL: `peakrdl uvm <ip>.rdl -o generated/<ip>_ral_pkg.sv`
-   - HTML docs: `peakrdl html <ip>.rdl -o generated/html`
-   - C header: `peakrdl c-header <ip>.rdl -o generated/<ip>.h`
+2. **Generated** (into `ips/<ip>/rdl/generated/`, git-ignored until promoted) by
+   `env/.venv/bin/python3 flow/scripts/gen_regs.py ips/<ip>` — regblock RTL (`generated/rtl/`), UVM
+   RAL (`generated/<ip>_ral_pkg.sv`), HTML docs, C header. Every PeakRDL option (cpuif, module/package
+   name, reset style) comes from `registers:` in `ip_config.yaml` (`registers.regblock`, defaults
+   derived from the bus + reset), never from a command typed by hand: the outputs are git-ignored, so
+   the config is the only record of how to reproduce them. `run_regression.py` re-runs it whenever
+   the outputs are missing or older than the RDL/config.
 
 ## Method
 - Model every field's software access (`sw = rw|r|w`), hardware access (`hw = r|w|rw|na`), reset
@@ -54,10 +56,9 @@ generates RTL, the UVM RAL model, C headers, and docs — so they can never drif
 - Don't hand-edit generated files; change the RDL and regenerate.
 - Keep field-level `desc` traceable (reference the REQ/SPEC IDs) so register coverage maps to
   requirements.
-- The generated regblock's `MULTIDRIVEN`/`UNUSEDPARAM` warnings under Verilator (from its
-  `field_combo` struct pattern) are expected, generic false-positives, not a sign the RDL/generation
-  is wrong — `lint-static-checker` waives these once for any IP via a shared, filename-matched
-  Verilator config. Don't try to restructure the RDL to avoid them.
+- The generated regblock passes the static gate as generated; its "port has no load" notes for upper
+  data bits of narrow registers are expected and informational. Never hand-edit generated RTL to
+  silence a tool — fix the RDL or record a waiver with its reason.
 - **xsim cannot measure a PeakRDL regblock's code toggle** (every IP, predictable from the template):
   the field flops live in nested structs (`field_storage`, `hwif_out`) that xsim does not instrument
   for toggle, and the per-field `automatic logic next_c`/`load_next_c` temporaries it does list are

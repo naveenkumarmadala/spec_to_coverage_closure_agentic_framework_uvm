@@ -30,8 +30,8 @@ wait for the other to finish; they only have to rendezvous before stage 8.
 ### Design thread
 3. **Registers** (`register-designer`) → `rdl/*.rdl` → PeakRDL outputs (RTL, RAL, docs)
 4. **RTL** (`rtl-designer`) → `rtl/*.sv`
-5. **Static gate** (`lint-static-checker`) → Verible lint + elaboration (xsim `xelab`, optionally
-   Verilator/Yosys) must pass
+5. **Static gate** (`lint-static-checker`) → `flow/scripts/static_gate.py`: Verible lint + xsim
+   elaboration + Vivado synthesis must pass
 5.5. **Design review** (`design-reviewer`) → independent spec-conformance check, cold, never reading
    `dv/`; re-run scoped to the diff every time RTL/RDL changes, including after stage 10 edits it —
    this is a standing gate on the design thread, not a one-time stage

@@ -55,7 +55,7 @@ def checker_for(item):
     if method == "register" or kind == "ral":
         return "RAL predictor + uvm_reg sequences (reset / bit-bash / access)"
     if method == "static":
-        return "Static gate (Verible lint / Yosys elaboration)"
+        return "Static gate (Verible lint / xsim elaboration / Vivado synthesis)"
     return "Reference-model scoreboard + SVA"
 
 

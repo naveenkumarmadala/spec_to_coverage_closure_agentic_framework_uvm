@@ -77,7 +77,18 @@
       "properties": {
         "source": { "type": "string", "description": "Path (relative to the IP dir) to the register description file." },
         "format": { "enum": ["systemrdl"], "description": "Only SystemRDL is the source of truth; other formats are converted to it upstream." },
-        "top_component": { "type": "string", "description": "Name of the top addrmap in the RDL, if not auto-detected." }
+        "top_component": { "type": "string", "description": "Name of the top addrmap in the RDL, if not auto-detected." },
+        "regblock": {
+          "type": "object",
+          "description": "PeakRDL regblock options, read by flow/scripts/gen_regs.py so the generated RTL is reproducible from this config alone. All optional.",
+          "additionalProperties": false,
+          "properties": {
+            "cpuif": { "type": "string", "description": "peakrdl regblock --cpuif. Default: vip_registry buses.<bus.protocol>.cpuif." },
+            "module_name": { "type": "string", "description": "Default: <ip>_regblock." },
+            "package_name": { "type": "string", "description": "Default: <ip>_regblock_pkg." },
+            "default_reset": { "enum": ["rst", "rst_n", "arst", "arst_n"], "description": "Default: derived from the bus reset in resets: (sync/async, active high/low)." }
+          }
+        }
       }
     },
     "interfaces": {
@@ -124,7 +135,7 @@
           "description": "Which environment(s) to generate. Single-track: standard SystemVerilog UVM only (the pyuvm/cocotb track has been retired). Kept as an array for forward compatibility."
         },
         "coverage_goal_pct": { "type": "number", "minimum": 0, "maximum": 100, "default": 100 },
-        "primary_simulator": { "enum": ["xsim", "verilator", "icarus"], "default": "xsim", "description": "UVM simulator. xsim (AMD Vivado) is the primary sign-off simulator: it runs complete standard UVM with native constrained randomization, functional + code coverage, and SVA. verilator/icarus are optional fast lint/elaboration helpers only — they cannot carry full-UVM sign-off." },
+        "primary_simulator": { "enum": ["xsim"], "default": "xsim", "description": "UVM simulator: AMD Vivado xsim, the only simulator this flow uses. It runs complete standard UVM with native constrained randomization, functional + code coverage, and SVA." },
         "uvm_version": { "enum": ["1.2", "2017", "2020"], "default": "1.2", "description": "UVM library version. xsim ships a precompiled UVM 1.2; 2017/2020 require compiling the bundled Accellera uvm-core sources." },
         "regression": {
           "type": "object",

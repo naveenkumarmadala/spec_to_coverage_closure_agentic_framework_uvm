@@ -43,22 +43,22 @@ design spec and instantiates the generated register block.
   (see `coverage-triage`).
 
 ## Style & quality (hard requirements)
-- **Synthesizable subset only** — must elaborate under Yosys and Verilator. No delays, no
+- **Synthesizable subset only** — must pass the static gate (xsim elaboration + Vivado synthesis). No delays, no
   `initial` for hardware state, no unsupported constructs.
 - Registered outputs; explicit reset for every flop using the configured reset (`presetn`, async
   assert / sync deassert as configured). No inferred latches.
 - `always_ff` for sequential, `always_comb` for combinational; full case/default; sized literals.
 - Name signals meaningfully and match the spec's block/FSM names so traceability is visible.
 - Put a one-line comment tag on blocks implementing a spec item: `// impl SPEC-012 / REQ-004`.
-  **Never start a comment with the literal word `verilator`** (e.g. `// verilator ...`) unless you
-  mean an actual Verilator pragma — Verilator parses any comment beginning with that word as a
-  directive and errors (`BADVLTPRAGMA`) if it isn't one it recognizes.
+  No tool pragmas in comments (lint on/off, synthesis directives): RTL stays tool-neutral.
 - Parameterize widths from the config (data width, GPIO width) — never hardcode a magic number that
   the config already defines.
-- Zero-initializing a whole `hwif_in`/`hwif_out` struct (or any unpacked-struct signal) with a bare
-  `'0` elaborates fine under Yosys/sv2v but fails to compile under Verilator (a C++ `operator=`
-  mismatch on the generated struct type) — use an explicit assignment pattern instead:
-  `sig = '{default: '0};`. Semantically identical, synthesizable either way, and avoids the wall.
+- Zero-initialize a whole `hwif_in`/`hwif_out` struct (or any unpacked-struct signal) with an explicit
+  assignment pattern, `sig = '{default: '0};`, rather than a bare `'0`: the pattern is unambiguous for
+  every tool (some reject `'0` on unpacked structs).
+- Keep operand widths equal in comparisons and arithmetic (declare counters at the width of the value
+  they are compared with, size literals). The static gate does not flag a width mismatch inside an
+  expression — Vivado silently zero-extends — so this is on the author and the design review.
 - "Takes effect at the next X, not immediately" language in the spec (e.g. a register write while a
   channel/FSM is active) means a **shadow register**, latched at the same edge the rest of that
   event's state updates — not a live read of the register in the datapath that uses it. Getting this
@@ -68,9 +68,9 @@ design spec and instantiates the generated register block.
 
 ## Workflow (respect the gates — do not skip ahead)
 1. Write/modify RTL.
-2. **Lint**: `verible-verilog-lint` — fix all errors (waive only with justification).
-3. **Elaborate**: Verilator (`verilator --lint-only -Wall`) and Yosys (`read_verilog -sv; hierarchy`)
-   must both pass. Report failures with the actual message and fix them.
+2. **Static gate**: `python3 flow/scripts/static_gate.py ips/<ip>` (Verible lint + xsim elaboration +
+   Vivado synthesis) must PASS. Report failures with the actual message and fix them; waive only in
+   `dv/<ip>_static_waivers.txt` with a written justification.
 4. Only then hand off to verification. If a gate is red, iterate — do not declare the RTL done.
 
 ## Rules

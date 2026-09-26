@@ -42,6 +42,8 @@ registers:
   source: rdl/pmtpc4.rdl
   format: systemrdl
   top_component: pmtpc4
+  regblock:                            # read by flow/scripts/gen_regs.py
+    cpuif: passthrough                 # pmtpc4_apb_slave owns APB3 (wait state, PSLVERR decode) and drives the regblock
 
 interfaces:
   - name: pwm_out

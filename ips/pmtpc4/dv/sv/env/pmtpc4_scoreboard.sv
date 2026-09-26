@@ -2,7 +2,7 @@
 // Checks, for every APB access: PSLVERR legality, wait-state count, PRDATA=0 on
 // error, and read-back of the deterministic (static) RW/RO registers against a
 // shadow. Cycle-level behavior (PWM waveform, IRQ aggregation, W1C set-priority,
-// MODULE_EN freeze, reset) is proven by the SVA layer (sva/) and formal (formal/),
+// MODULE_EN freeze, reset) is proven by the SVA layer (sva/),
 // which is where those cycle-accurate golden checks belong.
 `uvm_analysis_imp_decl(_apb)
 class pmtpc4_scoreboard extends uvm_scoreboard;

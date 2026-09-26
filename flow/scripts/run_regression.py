@@ -191,6 +191,7 @@ def main():
         print(f"     {t:30s} -> {seeds_for[t]:3d} seed(s)  [{why}]")
 
     # generated inputs that must track the RDL / filelist (so no manual step is ever needed)
+    refresh_regs(ip_dir)
     refresh_reg_toggle_cfg(ip_dir)
 
     # compile + elaborate once
@@ -318,6 +319,28 @@ def tb_top_toggle_hazards(ip_dir: Path):
     if re.search(r"\$dump(vars|file|on|all)\b", src):
         found.append("$dumpvars/$dumpfile")
     return found
+
+
+def refresh_regs(ip_dir: Path):
+    """Run gen_regs.py (PeakRDL regblock/RAL/docs/header, options from ip_config.yaml) when the
+    generated register outputs are missing or older than the RDL or ip_config.yaml. They are
+    git-ignored, so this is what makes a fresh clone build without a remembered command."""
+    cfg = ip_dir / "ip_config.yaml"
+    m = re.search(r"^registers:\s*\n(?:\s+.*\n)*?\s+source:\s*(\S+)", cfg.read_text(), re.M) if cfg.exists() else None
+    if not m or not (ip_dir / m.group(1)).exists():
+        return
+    rdl = ip_dir / m.group(1)
+    ral = rdl.parent / "generated" / f"{ip_dir.name}_ral_pkg.sv"
+    rtl = rdl.parent / "generated" / "rtl"
+    newest_src = max(rdl.stat().st_mtime, cfg.stat().st_mtime)
+    if ral.exists() and rtl.is_dir() and any(rtl.glob("*.sv")) and ral.stat().st_mtime >= newest_src:
+        return
+    venv_py = HERE.parent.parent / "env" / ".venv" / "bin" / "python3"
+    py = str(venv_py) if venv_py.exists() else sys.executable
+    r = sh([py, str(HERE / "gen_regs.py"), str(ip_dir)])
+    print("   " + (r.stdout.strip() or r.stderr.strip()).replace("\n", "\n   "))
+    if r.returncode != 0:
+        sys.exit("register generation failed -- fix the RDL / ip_config registers: section first")
 
 
 def refresh_reg_toggle_cfg(ip_dir: Path):

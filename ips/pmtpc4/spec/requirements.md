@@ -51,7 +51,7 @@ Source docs: [Requirements](PMTPC-4_Requirements_Specification.md) ·
 |---|---|---|---|---|---|
 | REQ-VERIF-1 | Verify to 100% functional coverage across all FSMs, register fields, and protocol edge cases, including the five errata, with traceability. | performance | must | Req §7 | coverage closure report |
 | REQ-VERIF-2 | RTL achieves 100% line, toggle, FSM state/transition, and branch coverage, with a justified waiver list for unreachable code. | performance | must | Req §7 | code-coverage report |
-| REQ-SYNTH-1 | RTL is synthesizable to a standard-cell library with no simulator-specific directives. | functional | must | Req §7 | Yosys elaboration gate |
+| REQ-SYNTH-1 | RTL is synthesizable to a standard-cell library with no simulator-specific directives. | functional | must | Req §7 | static gate (Vivado synthesis) |
 | REQ-SYNTH-2 | Single clock domain (PCLK); no CDC. | functional | must | Req §7, Des §3.2 | design review + lint |
 
 ## Derived register requirements (from Register Spec Rev 1.1)

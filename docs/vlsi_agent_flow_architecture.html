@@ -286,7 +286,7 @@ flowchart TB
 
     subgraph DTHREAD["DESIGN THREAD (stages 3-5.5)"]
       direction TB
-      D3["3 registers\n(register-designer)"]:::dispatch --> D4["4 RTL\n(rtl-designer)"]:::dispatch --> D5["5 static gate\nVerible->Verilator->Yosys"]:::dispatch --> D55["5.5 design-reviewer\nspec-literal, READ-ONLY,\nnever reads dv/"]:::exec
+      D3["3 registers\n(register-designer)"]:::dispatch --> D4["4 RTL\n(rtl-designer)"]:::dispatch --> D5["5 static gate\nVerible->xsim->Vivado synth"]:::dispatch --> D55["5.5 design-reviewer\nspec-literal, READ-ONLY,\nnever reads dv/"]:::exec
     end
     S12 --> D3
 
@@ -404,7 +404,7 @@ flowchart TD
     C --> D["PeakRDL\nregblock RTL / UVM RAL /\nC header / HTML docs"]:::script
     D --> E["rtl-designer"]:::exec
     E --> F["rtl/*.sv"]:::disk
-    F --> G{{"STATIC GATE\nVerible -> Verilator -> Yosys"}}:::decision
+    F --> G{{"STATIC GATE\nVerible -> xsim elab -> Vivado synth"}}:::decision
     G -->|FAIL, findings| E
     G -->|PASS| H{{"DESIGN REVIEW\nspec re-derived cold,\nindependent of RTL comments"}}:::decision
     H -->|CONFIRMED divergence| E
@@ -417,9 +417,9 @@ flowchart TD
 </pre>
   </div>
   <ul class="rules">
-    <li><span class="rid">lint-static-checker.md</span> peakrdl-regblock's <code>field_combo</code> struct trips Verilator's <code>MULTIDRIVEN</code> on every IP — waived once, generically, in a shared filename-matched <code>flow/tools/verilator_waivers.vlt</code>, never per-IP.</li>
-    <li><span class="rid">rtl-designer.md</span> A bare <code>'0</code> on an unpacked <code>hwif_in</code>/<code>hwif_out</code> struct compiles under Yosys/sv2v but fails Verilator's C++ codegen — use <code>'{default:'0}</code>.</li>
-    <li><span class="rid">rtl-designer.md</span> Never start a comment with the literal word "verilator" — it's parsed as a pragma, not prose.</li>
+    <li><span class="rid">lint-static-checker.md</span> One command, <code>flow/scripts/static_gate.py</code>: Verible lint, xsim elaboration of the DUT alone, Vivado out-of-context synthesis. Deny-by-default &mdash; any unclassified warning fails; per-IP waivers need a written reason.</li>
+    <li><span class="rid">rtl-designer.md</span> Use <code>'{default:'0}</code>, not a bare <code>'0</code>, on an unpacked <code>hwif_in</code>/<code>hwif_out</code> struct &mdash; unambiguous for every tool.</li>
+    <li><span class="rid">rtl-designer.md</span> No tool pragmas in RTL comments; keep operand widths equal in expressions (the static gate does not flag a width mismatch inside an expression).</li>
     <li><span class="rid">design-review skill</span> "Takes effect at the next X, not immediately" in a spec implies a shadow register latched at that event — check <em>every</em> field described that way, not just the first one implemented.</li>
   </ul>
   <div class="example"><b>Real example — PMTPC-4:</b> four RTL bugs shipped past the static gate before
@@ -430,7 +430,7 @@ flowchart TD
     fifth, initially-suspected gap (CH_EN=0 during LOAD/EXPIRED) was actually already correct — the
     Register Spec's field description said "regardless of current state," which the Design Spec's
     transition table alone didn't state.</div>
-  <div class="checkpoint"><span class="mark">✓</span> Verible + Verilator + Yosys clean, and design review finds no confirmed divergence</div>
+  <div class="checkpoint"><span class="mark">✓</span> Static gate PASS (Verible + xsim + Vivado synth), and design review finds no confirmed divergence</div>
 </section>
 
 <!-- ============================================================ -->
@@ -667,7 +667,7 @@ flowchart LR
     <thead><tr><th class="num">#</th><th>Discovery</th><th>Impact</th><th>Change made</th></tr></thead>
     <tbody>
       <tr><td class="num">1</td><td>Nested quoting through <code>wsl bash -lc</code> silently corrupts <code>$(...)</code> substitutions</td><td>Commands appeared to run but used empty/wrong values, with no error</td><td>Convention: write multi-step commands to a script file, never inline</td></tr>
-      <tr><td class="num">2</td><td>Verilator (even latest) can't run complete UVM — coverage collection + full-testbench sim are incomplete</td><td>SV/UVM could be authored but never actually simulated</td><td>Adopted AMD Vivado xsim (free ML Standard) as the UVM simulator; Verilator demoted to a lint/elab helper</td></tr>
+      <tr><td class="num">2</td><td>Verilator (even latest) can't run complete UVM — coverage collection + full-testbench sim are incomplete</td><td>SV/UVM could be authored but never actually simulated</td><td>Adopted AMD Vivado xsim (free ML Standard) as the UVM simulator; Verilator demoted to a lint helper, later removed entirely (Vivado-only static gate)</td></tr>
       <tr><td class="num">3</td><td><code>hwif_in = '0;</code> on an unpacked struct compiles under Yosys/sv2v, fails Verilator's C++ codegen</td><td>Static gate passed; simulation build failed</td><td>Use <code>'{default:'0}</code>; documented in <code>rtl-designer.md</code></td></tr>
       <tr><td class="num">4</td><td>A comment starting with the word "verilator" is parsed as a pragma</td><td><code>BADVLTPRAGMA</code> compile error from plain prose</td><td>Documented as an explicit style rule</td></tr>
       <tr><td class="num">5</td><td>First-generation coverage model sampled bins directly from test code</td><td>"100%" coverage that checked almost nothing</td><td>Rebuilt around a cycle-accurate reference model; anti-pattern rule added to <code>test-writer.md</code></td></tr>
@@ -765,7 +765,7 @@ flowchart LR
       <tr><td><span class="pill p1">P1</span></td><td>Deferred RTL-split follow-up (<code>cpuif_wr_data</code>, <code>int_status_val</code>/<code>int_en_val</code>, <code>ch_expiry[3]</code>)</td><td>Investigated this session; every attempt (hierarchical port reference, inline-and-delete-the-wire) made the score worse or broke the static gate — see Section 10, rows 14-15</td><td>Leave as documented residual unless a genuinely new technique is found and verified with a real before/after regression, never assumed from the one precedent (<code>cpuif_rd_data_pad</code>) that did work</td></tr>
       <tr><td><span class="pill p1">P1</span></td><td>Mutation spot-check is manual</td><td>The reviewer hand-picks a few lines per run — thorough but not systematic</td><td>A small script that seeds N random single-line RTL mutations, reruns the regression, and reports the catch rate</td></tr>
       <tr><td><span class="pill p2">P2</span></td><td>UVM 2020 instead of built-in 1.2</td><td>xsim ships UVM 1.2; the bundled Accellera <code>env/_tools/uvm-core</code> sources aren't compiled in yet</td><td>Wire an opt-in <code>verification.uvm_version: "2020"</code> path that compiles the bundled sources into xsim</td></tr>
-      <tr><td><span class="pill p2">P2</span></td><td>Formal (SymbiYosys) drafted but never run</td><td><code>ips/pmtpc4/formal/pmtpc4_channel.sby</code> + a bound formal-verification wrapper already exist; <code>sby</code> + an SMT solver are still not installed — documented gap, not closed</td><td>Add to the bootstrap once a maintainer signs off on the extra install</td></tr>
+      <tr><td><span class="pill p3">DONE</span></td><td style="text-decoration:line-through;">Formal (SymbiYosys) drafted but never run</td><td colspan="2">Removed: the flow is Vivado-only; the never-run SymbiYosys harness was deleted with Verilator, Yosys and sv2v.</td></tr>
       <tr><td><span class="pill p3">P3</span></td><td>Cross-IP pattern library</td><td>Every peakrdl-regblock false-positive, xsim/UVM gotcha, and coverage-tool blind spot (this session added several — Section 10) was learned fresh on this one IP</td><td>A pattern library applied automatically to the next IP in the family</td></tr>
     </tbody>
   </table></div>
@@ -773,8 +773,8 @@ flowchart LR
 
 <footer>
   VLSI Front-End Agentic Framework — single-track SystemVerilog UVM on AMD Vivado xsim. Toolchain:
-  PeakRDL, Verible, Yosys, sv2v (free/open-source) + Vivado xsim (free ML Standard); Verilator/Icarus
-  as optional lint/elaboration helpers.
+  PeakRDL, Verible (free/open-source) + Vivado (free ML Standard): xsim for simulation and coverage,
+  xelab + synth_design for the static gate.
 </footer>
 
 </div>

@@ -104,7 +104,8 @@ module pmtpc4_channel #(
             if (module_en) ch_en_q <= ch_en;
             expiry    <= 1'b0;     // default: pulses low
             ch_en_clr <= 1'b0;
-            if (ch_start) ch_start_pending <= 1'b1;   // latch, frozen or not; cleared at consumption below
+            // latch, frozen or not; cleared at consumption below
+            if (ch_start) ch_start_pending <= 1'b1;
 
             if (soft_reset) begin
                 state            <= S_IDLE;

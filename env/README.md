@@ -6,7 +6,7 @@ covers all of that from scratch; this page is the reference for what the bootstr
 The flow is **single-track SystemVerilog UVM** run on **AMD Vivado xsim**, under **WSL2 Ubuntu**.
 Everything except Vivado is installed by the bootstrap; **Vivado is a manual install** (below).
 
-## 1. WSL2 + the free helper toolchain
+## 1. WSL2 + Verible + the Python venv
 
 From Windows PowerShell, install WSL2 + Ubuntu once:
 
@@ -17,7 +17,7 @@ wsl --install -d Ubuntu-24.04
 Then, inside the Ubuntu shell, from the repo root:
 
 ```bash
-bash env/bootstrap-wsl2.sh          # Verible, Yosys, sv2v, Icarus, Verilator (apt), PeakRDL venv
+bash env/bootstrap-wsl2.sh          # Verible + PeakRDL venv (everything else is Vivado)
 source env/.venv/bin/activate       # activate the Python (PeakRDL + flow scripting) env
 bash env/bootstrap-wsl2.sh --check  # verify versions (incl. whether xsim is reachable)
 ```
@@ -61,14 +61,12 @@ python3 flow/scripts/run_regression.py ips/<ip>                  # seeded regres
 
 ## What gets installed (by bootstrap)
 
-Pinned in [`tool-versions.yaml`](tool-versions.yaml): **Verible** (lint/format/syntax), **Yosys** +
-**sv2v** (synthesizability signoff), **Verilator** + **Icarus** (optional lint/elab/cross-check
-helpers — *not* the UVM sim), and a Python venv with the **PeakRDL** exporters (regblock RTL, UVM
+Pinned in [`tool-versions.yaml`](tool-versions.yaml): **Verible** (lint/format/syntax) and a Python venv with the **PeakRDL** exporters (regblock RTL, UVM
 RAL, HTML docs, C headers) plus the flow's scripting deps. No cocotb/pyuvm — the Python verification
 track has been retired.
 
 ## Docker (static/generation toolchain only)
 
-[`Dockerfile`](Dockerfile) provides the helper toolchain (Verible/Yosys/sv2v/Verilator/PeakRDL) for
-lint, register generation, and elaboration. It does **not** contain Vivado xsim (license + size);
-run UVM simulation in a WSL2/host environment where xsim is installed.
+[`Dockerfile`](Dockerfile) provides Verible and PeakRDL for lint and register generation. It does
+**not** contain Vivado (license + size), which runs the static gate's elaboration and synthesis, UVM
+simulation and coverage; run those in a WSL2/host environment where Vivado is installed.

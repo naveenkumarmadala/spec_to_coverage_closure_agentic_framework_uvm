@@ -23,8 +23,8 @@ fell back to the Python track to carry coverage closure. **That dual-track is go
   Python re-implementation.
 - **One simulator: AMD Vivado `xsim`** — the only free, local, headless simulator that runs
   *complete* UVM with native constrained randomization, functional + code coverage, and SVA.
-  Verilator/Icarus survive only as optional fast lint/elaboration helpers; **they never carry
-  UVM sign-off.** cocotb, pyuvm, and the `crv.py` helper have been removed.
+  The static RTL gate is Vivado-only too (Verible lint + xsim elaboration + Vivado synthesis).
+  cocotb, pyuvm, the `crv.py` helper, Verilator, Icarus, Yosys and sv2v are not used.
 
 If you find any pyuvm/cocotb/`dv/py`/`crv.py` reference still in the repo, it is a leftover to
 delete, not a track to maintain.
@@ -47,8 +47,8 @@ delete, not a track to maintain.
 3. **Traceability is mandatory.** Every artifact carries a stable ID. Preserve the chain
    `REQ → SPEC → REG → RTL → VPLAN → COV`. IDs never get reused or silently renumbered.
 4. **Quality gates are hard gates.** RTL and DV are agent-authored but only "accepted" after they
-   pass, in order: **lint (Verible) → elaboration (xsim `xelab`, optionally Verilator/Yosys) →
-   simulation (xsim) → coverage (xsim `-cov` + `xcrg`)**. A failing gate blocks the next stage;
+   pass, in order: **static gate (`flow/scripts/static_gate.py`: Verible lint + xsim elaboration +
+   Vivado synthesis) → simulation (xsim) → coverage (xsim `-cov` + `xcrg`)**. A failing gate blocks the next stage;
    report the failure with the actual tool output, never paper over it.
    **Coverage is measured from two xsim snapshots of the same test and seed** (verified identical by
    `run_regression.py`): the normal one (tb top + `tb/<ip>_binds.sv` + `tb/<ip>_dump.sv`) for
@@ -65,8 +65,8 @@ delete, not a track to maintain.
 ## Toolchain (invoked from WSL2 Ubuntu)
 
 `peakrdl` (registers/RAL/docs), **Vivado `xvlog`/`xelab`/`xsim`/`xcrg`** (compile/elaborate/run/
-coverage — the UVM sign-off simulator), `verible-verilog-{lint,format,syntax}` (static),
-`yosys` (synthesizability), `verilator`/`iverilog` (optional lint/elab/cross-check), `sv2v`.
+coverage — the UVM sign-off simulator), **Vivado `synth_design`** (synthesizability, in the static
+gate), `verible-verilog-{lint,format,syntax}` (lint).
 Pinned in [`env/tool-versions.yaml`](env/tool-versions.yaml); installed by
 [`env/bootstrap-wsl2.sh`](env/bootstrap-wsl2.sh). **Vivado is a manual install** (see
 [`env/README.md`](env/README.md)); the bootstrap installs everything else.
@@ -96,7 +96,7 @@ Pinned in [`env/tool-versions.yaml`](env/tool-versions.yaml); installed by
   There is no `dv/py`.
 - Generated files go in a `generated/` subdir and are git-ignored until explicitly promoted.
 - Prefer editing templates in `flow/templates/` over editing generated output by hand.
-- When authoring RTL, match the surrounding style and keep it synthesizable (Yosys must elaborate it).
+- When authoring RTL, match the surrounding style and keep it synthesizable (the static gate's Vivado synthesis must pass).
 - Report tool results faithfully. If coverage is 87%, say 87% and show the holes — do not claim closure.
 - Files run in WSL2/Docker (Linux). `.gitattributes` forces LF on tool-consumed files — keep it that way.
 

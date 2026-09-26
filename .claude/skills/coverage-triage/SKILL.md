@@ -228,8 +228,8 @@ writable bits, pulses the `singlepulse` ones and drives every hardware-set read-
   corroborating-evidence check above) and already carries a `signal -` waiver that's confirmed to
   take effect, **leave it as a named wire** — there is no known safe way to eliminate it that
   actually improves the score; inlining is not that way, and neither is a hierarchical port
-  reference across two module instances (see `lint-static-checker`'s note on that — it also fails,
-  differently, by silently truncating width under `sv2v`). Only touch this class of signal again if a
+  reference across two module instances (see `lint-static-checker`'s note on that — a format
+  converter once silently truncated such a connection's width). Only touch this class of signal again if a
   new technique is found and it is verified with a real before/after regression, never on the
   strength of the `cpuif_rd_data_pad` precedent alone.
 

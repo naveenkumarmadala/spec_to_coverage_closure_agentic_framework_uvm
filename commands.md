@@ -18,7 +18,7 @@ a blank machine, including WSL2 and the Vivado install.*
 
 ```bash
 # From WSL2 Ubuntu, at the repo root — run this yourself (needs your sudo password interactively)
-bash env/bootstrap-wsl2.sh            # Verible, Yosys, sv2v, Verilator/Icarus (helpers), PeakRDL venv
+bash env/bootstrap-wsl2.sh            # Verible + PeakRDL venv (everything else is Vivado)
 source env/.venv/bin/activate         # activate the Python venv (needed in every new shell)
 ```
 
@@ -50,7 +50,7 @@ Extracts a draft `ip_config.yaml` + requirements. **Stops at a confirmation gate
 ```
 /vlsi-spec <ip_name>            # requirements database + design specification
 /vlsi-registers <ip_name>       # SystemRDL + PeakRDL → regblock RTL, UVM RAL, C header, HTML
-/vlsi-rtl <ip_name>             # synthesizable RTL + static gate (Verible + Verilator lint + Yosys)
+/vlsi-rtl <ip_name>             # synthesizable RTL + static gate (Verible + xsim + Vivado synth)
 /vlsi-build-env <ip_name>       # vPlan + SystemVerilog UVM env + smoke test on xsim
 /vlsi-verify <ip_name>          # directed + native constrained-random tests, run on xsim
 /vlsi-close-coverage <ip_name>  # regress across seeds, merge coverage, triage to the goal
@@ -69,24 +69,14 @@ Or run the whole thing unattended after the confirmation gate:
 `pmtpc4` (4-channel timer/PWM, APB) is the reference IP. Its complete SystemVerilog UVM environment
 compiles, elaborates, and runs on xsim.
 
-### C1. Static gate — lint + synthesizability elaboration
+### C1. Static gate — lint + elaboration + synthesizability (Vivado-only)
 ```bash
-source env/.venv/bin/activate
-
-# Verible lint over hand-authored RTL
-verible-verilog-lint ips/pmtpc4/rtl/*.sv
-
-# Verilator lint-only (fast helper) — shared waiver covers peakrdl-regblock false-positives
-verilator --lint-only -Wall -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL \
-  flow/tools/verilator_waivers.vlt \
-  -f ips/pmtpc4/dv/filelist.f --top-module pmtpc4
-
-# Yosys elaboration — sv2v-flatten first (Yosys rejects peakrdl's unpacked hwif structs)
-mkdir -p ips/pmtpc4/dv/generated
-sv2v -w ips/pmtpc4/dv/generated/pmtpc4_yosys_flat.v \
-  $(grep -v '^[[:space:]]*//' ips/pmtpc4/dv/filelist.f)
-yosys -p "read_verilog -sv ips/pmtpc4/dv/generated/pmtpc4_yosys_flat.v; hierarchy -top pmtpc4 -check"
+python3 flow/scripts/static_gate.py ips/pmtpc4    # -> ips/pmtpc4/reports/static_gate.txt
 ```
+Runs Verible lint on the hand-written RTL, xsim `xvlog`/`xelab` on the DUT alone, and Vivado
+`synth_design` (out-of-context) for synthesizability — latches, multi-driven/undriven nets, width
+mismatches at ports, loops. Deny-by-default: any unclassified warning fails. DUT files come from
+`dv/sv/filelist.f`.
 
 ### C2. UVM smoke test on xsim (compile → elaborate → run)
 ```bash
@@ -125,11 +115,6 @@ Drives the closure loop (regress → merge → triage → add stimulus/waive) to
 `ip_config.yaml`, producing `ips/pmtpc4/reports/coverage_summary.md` with per-vPlan and per-REQ
 roll-ups. Report the real number; a green run needs pass/fail *and* coverage both met.
 
-### C5. Formal (optional)
-```bash
-cd ips/pmtpc4/formal && sby -f pmtpc4_channel.sby   # needs sby + an SMT solver (z3/boolector/yices)
-```
-
 ---
 
 ## Notes
@@ -138,11 +123,9 @@ cd ips/pmtpc4/formal && sby -f pmtpc4_channel.sby   # needs sby + an SMT solver 
   (or add both to `~/.bashrc`). The flow scripts also source `$VIVADO_SETTINGS` if xsim isn't on PATH.
 - Regenerate registers after any `.rdl` edit:
   ```bash
-  cd ips/pmtpc4/rdl
-  peakrdl regblock pmtpc4.rdl -o generated/rtl --cpuif passthrough \
-    --module-name pmtpc4_regblock --package-name pmtpc4_regblock_pkg --hwif-report
-  peakrdl uvm   pmtpc4.rdl -o generated/pmtpc4_ral_pkg.sv
-  peakrdl html  pmtpc4.rdl -o generated/html
+  env/.venv/bin/python3 flow/scripts/gen_regs.py ips/pmtpc4
+  # options (cpuif, names, reset style) come from ip_config.yaml registers:; run_regression.py
+  # also runs this automatically when the generated outputs are missing or stale
   ```
 - A failing gate blocks the next stage — report the actual tool output, never paper over it
   (per [`CLAUDE.md`](CLAUDE.md)).
