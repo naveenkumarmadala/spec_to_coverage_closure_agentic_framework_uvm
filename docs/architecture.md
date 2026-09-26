@@ -166,12 +166,12 @@ their `VP-` id. The closure report inverts this chain to prove every requirement
 | P5 | Regression runner; coverage merge/report; closure loop to goal | |
 | P6 | Prove protocol-agnosticism (AXI-Lite via registry) + subsystem hierarchy/integration verif | |
 
-## 8. Example (not the product)
+## 8. Reference IP
 
-`examples/apb_gpio/` — an APB4 32-bit GPIO + timer peripheral used to prove the flow end-to-end.
-Register-heavy on purpose: it exercises the full SystemRDL → PeakRDL → RAL → register-coverage path,
-the highest-value part of the flow. It is a demo; the framework itself is IP/protocol-agnostic. Real
-IPs live under `ips/` and are onboarded from a requirement document via `/vlsi-ingest`.
+The flow's end-to-end proof is a real IP, not a demo: `ips/pmtpc4` (APB3 4-channel timer/PWM
+controller), closed at release `pmtpc4-v1.0`. The earlier `examples/apb_gpio/` config-only demo was
+removed. The framework itself is IP/protocol-agnostic; IPs live under `ips/` and are onboarded from a
+requirement document via `/vlsi-ingest`.
 
 ## 9. Subsystem support (design-now, build-later)
 

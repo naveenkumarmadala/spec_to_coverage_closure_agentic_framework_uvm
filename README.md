@@ -1,12 +1,9 @@
 # VLSI Front-End Agentic Framework
 
-> **Archived.** This repository is frozen at tag
-> [`pmtpc4-v1.0`](../../releases/tag/pmtpc4-v1.0): the framework proven end-to-end on the
-> PMTPC-4 timer/PWM IP (41/41 regression; functional coverage 99.72%, union 99.90%; statement 99.87 /
-> branch 98.09 / condition 100; DUT code toggle 458/490 = 100% net of one documented constant net;
-> register-bit toggle 486/486). Development continues in a new project that builds a RISC-V
-> microcontroller SoC (IPs → subsystems → SoC) on this framework; this repository receives no
-> further changes.
+> **Status.** The single-IP framework, proven end-to-end on the PMTPC-4 timer/PWM IP — release
+> [`pmtpc4-v1.0`](../../releases/tag/pmtpc4-v1.0): 41/41 regression; functional coverage 99.72%,
+> union 99.90%; statement 99.87 / branch 98.09 / condition 100; DUT code toggle 458/490 = 100% net
+> of one documented constant net; register-bit toggle 486/486.
 
 A multi-agent framework that drives the **front-end VLSI development lifecycle** for any
 IP or subsystem — from **Requirements & Specifications** through **Design Specification**,
@@ -270,7 +267,6 @@ flow/config/        ip_config schema + validator + vip_registry (pluggable proto
 flow/{templates,scripts,tools}/     engine: templates, xsim flow-runner scripts, tool wrappers
 vip/<bus>/sv/       reusable SystemVerilog UVM VIP, selected via the registry
 ips/<name>/         YOUR IPs: spec/ rdl/ rtl/ dv/sv/ vplan/ reports/
-examples/apb_gpio/  a worked sample IP config (not the product — just a demo)
 env/                WSL2 bootstrap + pinned tool versions + Docker option + Vivado install steps
 docs/               design docs and this framework's own documentation
 ```
@@ -310,8 +306,6 @@ xsim build/coverage dirs, `reports/_runs`, `reports/_cov` — omitted; see [`.gi
 │       ├── dv/sv/                 the SystemVerilog UVM env — env/ seq/ sva/ test/ tb/, filelist.f
 │       ├── formal/                SymbiYosys harness (optional; documented if solver absent)
 │       └── reports/               regression + coverage output (git-ignored, regenerated)
-│
-├── examples/apb_gpio/             config demo only (ip_config + README)
 │
 ├── env/                            toolchain bootstrap (WSL2 + Docker) + Vivado install steps
 │   ├── README.md, bootstrap-wsl2.sh, tool-versions.yaml, Dockerfile

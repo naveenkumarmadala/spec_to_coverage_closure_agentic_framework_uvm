@@ -2,7 +2,7 @@
 """Validate an ip_config.yaml against flow/config/ip_config.schema.json.
 
 Usage:
-    python flow/scripts/validate_config.py examples/apb_gpio/ip_config.yaml
+    python flow/scripts/validate_config.py ips/<ip>/ip_config.yaml
 
 Exits 0 if valid, 1 otherwise. Also applies a few cross-field sanity checks
 that JSON Schema alone cannot express (e.g. bus.clock must name a real clock).

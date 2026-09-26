@@ -5,4 +5,5 @@ specification with:
 
     /vlsi-ingest <path/to/requirement_spec.(md|pdf|docx)> [ip_name]
 
-See `examples/apb_gpio/` for a worked sample.
+See `ips/pmtpc4/` for a complete, closed IP and
+`flow/config/ip_config.example.yaml` for the config template.

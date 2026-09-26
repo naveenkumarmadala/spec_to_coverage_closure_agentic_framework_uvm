@@ -90,8 +90,8 @@ Pinned in [`env/tool-versions.yaml`](env/tool-versions.yaml); installed by
 
 ## Working conventions
 
-- **Your IPs** live under `ips/<ip_name>/`; `examples/` holds worked samples (e.g. `apb_gpio`) — a
-  demo, not the product. Each IP dir has `spec/ rdl/ rtl/ dv/ vplan/ reports/`.
+- **Your IPs** live under `ips/<ip_name>/`; the config template is
+  `flow/config/ip_config.example.yaml`. Each IP dir has `spec/ rdl/ rtl/ dv/ vplan/ reports/`.
 - The UVM environment lives in `ips/<ip>/dv/sv/`; the reusable protocol UVCs live in `vip/<bus>/sv/`.
   There is no `dv/py`.
 - Generated files go in a `generated/` subdir and are git-ignored until explicitly promoted.
