@@ -1,5 +1,13 @@
 # VLSI Front-End Agentic Framework
 
+> **Archived.** This repository is frozen at tag
+> [`pmtpc4-v1.0`](../../releases/tag/pmtpc4-v1.0): the framework proven end-to-end on the
+> PMTPC-4 timer/PWM IP (41/41 regression; functional coverage 99.72%, union 99.90%; statement 99.87 /
+> branch 98.09 / condition 100; DUT code toggle 458/490 = 100% net of one documented constant net;
+> register-bit toggle 486/486). Development continues in a new project that builds a RISC-V
+> microcontroller SoC (IPs → subsystems → SoC) on this framework; this repository receives no
+> further changes.
+
 A multi-agent framework that drives the **front-end VLSI development lifecycle** for any
 IP or subsystem — from **Requirements & Specifications** through **Design Specification**,
 **Register Specification**, **RTL Design**, and **SystemVerilog UVM verification to 100% coverage
