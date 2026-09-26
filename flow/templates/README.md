@@ -11,13 +11,13 @@ Rendered against `ip_config.yaml` + `vplan.yaml` + the generated RAL.
 ## Templates (mechanical layer — gotcha-safe skeletons)
 
 - `tb_top.sv.j2` — clock/reset, DUT instance, `config_db` vif, `run_test`. **No binds and no
-  `$dumpvars` in it** (both corrupt xsim code-toggle recording); those are the two companion tops below.
+  `$dumpvars` in it** (both corrupt xsim code-toggle recording); binds go in the companion top below,
+  and waveforms come from `xsim_flow.sh wave` (Vivado-native `.wdb`), never `$dumpvars`.
 - `binds.sv.j2` → `tb/<ip>_binds.sv` — module `<ip>_binds`, every white-box SVA/coverage `bind`
   (bind checkers to the *registered* signal, never a combinational alias — the xsim preponed-X gotcha).
-- `dump.sv.j2` → `tb/<ip>_dump.sv` — module `<ip>_dump`, the `+DUMP` waveform dump.
-  `xsim_flow.sh` elaborates both companion tops in the normal snapshot and leaves them out of the
+  `xsim_flow.sh` elaborates the bind top in the normal and wave snapshots and leaves it out of the
   code-toggle snapshot (`--toggle`); `run_regression.py` refuses a toggle build whose tb top still
-  contains a bind or a dump.
+  contains a bind or a `$dumpvars`.
 - `full_test.sv.j2` — the standard `<ip>_full_test` that runs every vseq in one sim for union
   coverage, ending with the register-toggle vseq.
 - `reg_toggle_vseq.sv.j2` / `reg_toggle_test.sv.j2` — the standard register-block toggle closure

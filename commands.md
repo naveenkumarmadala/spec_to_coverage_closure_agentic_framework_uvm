@@ -91,6 +91,13 @@ xelab -L uvm -timescale 1ns/1ps -relax pmtpc4_tb_top -s pmtpc4_sim
 xsim pmtpc4_sim -R -testplusarg "UVM_TESTNAME=pmtpc4_sanity_test" -sv_seed 1
 ```
 
+**With a waveform** (Vivado's native `.wdb`; a separate `-debug typical` snapshot, so the coverage
+builds are never affected):
+```bash
+bash flow/scripts/xsim_flow.sh wave ips/pmtpc4 pmtpc4_pwm_duty_test 1
+xsim --gui ips/pmtpc4/reports/waves/pmtpc4_pwm_duty_test_seed1.wdb    # opens the Vivado wave viewer
+```
+
 ### C3. Seeded regression + coverage
 ```bash
 python3 flow/scripts/run_regression.py ips/pmtpc4            # all tests × N seeds (from ip_config), + coverage

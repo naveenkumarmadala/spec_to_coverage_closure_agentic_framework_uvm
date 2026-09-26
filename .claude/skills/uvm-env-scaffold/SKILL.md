@@ -45,17 +45,16 @@ ips/<ip>/dv/sv/
    sva/   <ip>_<blk>_sva.sv  (bound assertion + white-box coverage modules)
    tb/    <ip>_tb_top.sv  (DUT + IF + run_test — NO binds, NO $dumpvars)
           <ip>_binds.sv   (module <ip>_binds: every white-box SVA/coverage bind — a separate top)
-          <ip>_dump.sv    (module <ip>_dump: +DUMP waveform dump — a separate top)
    <ip>_test_pkg.sv   filelist.f
 ```
 
 ## Component responsibilities (the "exact architecture")
 
-- **tb_top** — clock/reset, DUT, interface(s), set vif in config_db, `run_test`. **The SVA binds and
-  the waveform dump are NOT in tb_top** — each is its own top module (`tb/<ip>_binds.sv`,
-  `tb/<ip>_dump.sv`) so the code-toggle snapshot can elaborate `tb_top` alone: on xsim a bound checker
-  erases the toggles of the DUT nets it observes, and `$dumpvars` merely present in the design (even
-  gated, never executed) stops toggle recording on others. `xsim_flow.sh` handles both snapshots.
+- **tb_top** — clock/reset, DUT, interface(s), set vif in config_db, `run_test`. **The SVA binds are
+  NOT in tb_top** — they are their own top module (`tb/<ip>_binds.sv`) so the code-toggle snapshot can
+  elaborate `tb_top` alone: on xsim a bound checker erases the toggles of the DUT nets it observes.
+  **No `$dumpvars` anywhere** — merely present in the design (even gated, never executed) it stops
+  toggle recording on others; waveforms come from `xsim_flow.sh wave` (Vivado-native `.wdb`).
 - **Interface** — pin bundle + clocking blocks + modports (in the reusable UVC).
 - **Reusable UVC** (`vip/<bus>/sv/`) — `seq_item` (with `rand` fields + `constraint`s), `driver`,
   `monitor`, `sequencer`, config-driven `agent` (active/passive, coverage on/off), `coverage`, and the

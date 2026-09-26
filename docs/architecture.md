@@ -59,13 +59,14 @@ Pinned in [`env/tool-versions.yaml`](../env/tool-versions.yaml).
 
 | Metric | Measured on | Report |
 |---|---|---|
-| Functional, assertions, statement/branch/condition | normal snapshot `<ip>_sim` = `<ip>_tb_top` + `<ip>_binds` + `<ip>_dump` | `reports/_cov/functional_report/`, `code_report/` |
+| Functional, assertions, statement/branch/condition | normal snapshot `<ip>_sim` = `<ip>_tb_top` + `<ip>_binds` | `reports/_cov/functional_report/`, `code_report/` |
 | Code toggle (hand-written RTL) | toggle snapshot `<ip>_tcov` = `<ip>_tb_top` alone (`xsim_flow.sh --toggle`) | `reports/_cov/toggle_summary.txt` (bit-weighted) |
 | Generated register block toggle | `reg_bit_toggle_cov` (every RAL field bit rise+fall, as read back from the DUT) + `<ip>_reg_toggle_test` | `reports/_cov/reg_bit_toggle.txt` |
 
 Why: on Vivado xsim a `bind`-ed checker erases the toggles of the DUT nets it observes and a
-`$dumpvars` merely present in the design stops toggle recording on others, so binds and the dump live
-in their own tops and toggle is measured without them. `run_regression.py` reruns the union test on the
+`$dumpvars` merely present in the design stops toggle recording on others, so binds live in their own
+top, toggle is measured without them, and no `$dumpvars` is used at all (waveforms: `xsim_flow.sh wave`,
+Vivado-native `.wdb`). `run_regression.py` reruns the union test on the
 toggle snapshot and requires identical execution (same scoreboard checks and register-bit totals); it
 also regenerates the exclusion lists (`gen_exclusions.py`, which scopes the generated register block
 out of the toggle report automatically) and the RDL-derived `singlepulse` list

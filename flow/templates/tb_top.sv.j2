@@ -11,10 +11,10 @@
 //    that a bound checker observes loses its code-toggle coverage. xsim_flow.sh elaborates
 //    the normal snapshot with both tops and the code-toggle snapshot (--toggle) with this
 //    top only; run_regression.py verifies the two runs executed identically.
-//  * NO $dumpvars in this module, not even behind a plusarg: on xsim its mere presence in
-//    the elaborated design stops code-toggle recording on some DUT nets (even if it never
-//    executes). The +DUMP waveform dump is its own top, tb/{{ ip }}_dump.sv, which the
-//    code-toggle snapshot leaves out. Timescale is set at xelab, not here.
+//  * NO $dumpvars anywhere, not even behind a plusarg: on xsim its mere presence in the
+//    elaborated design stops code-toggle recording on some DUT nets (even if it never
+//    executes). Waveforms come from `xsim_flow.sh wave` (a separate -debug snapshot writing
+//    Vivado's native .wdb). Timescale is set at xelab, not here.
 module {{ ip }}_tb_top;
     import uvm_pkg::*;
     import {{ ip }}_test_pkg::*;
@@ -41,5 +41,5 @@ module {{ ip }}_tb_top;
     end
 
 endmodule
-// Companion tops (render both, list them in filelist.f after this file):
-//   binds.sv.j2 -> tb/{{ ip }}_binds.sv   dump.sv.j2 -> tb/{{ ip }}_dump.sv
+// Companion top (render it, list it in filelist.f after this file):
+//   binds.sv.j2 -> tb/{{ ip }}_binds.sv

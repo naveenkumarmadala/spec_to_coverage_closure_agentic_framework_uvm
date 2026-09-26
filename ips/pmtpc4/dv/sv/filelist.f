@@ -47,7 +47,6 @@ sva/pmtpc4_channel_sva.sv
 sva/pmtpc4_pwm_cov.sv
 sva/pmtpc4_presc_sva.sv
 
-# ---- TB top + extra tops the code-toggle snapshot omits (binds; +DUMP waveform dump) ----
+# ---- TB top + the bind top (the code-toggle snapshot omits the bind top) ----
 tb/pmtpc4_tb_top.sv
 tb/pmtpc4_binds.sv
-tb/pmtpc4_dump.sv

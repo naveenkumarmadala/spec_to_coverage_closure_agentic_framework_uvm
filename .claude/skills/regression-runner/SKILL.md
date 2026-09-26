@@ -92,11 +92,15 @@ reported coverage, confirm it is called from `<ip>_full_test`'s body, not just f
 
 ## Coverage reports, exclusions & the test plan
 
-- **Two snapshots.** `<ip>_sim` = `tb_top` + the bind top (`tb/<ip>_binds.sv`) + the dump top
-  (`tb/<ip>_dump.sv`): assertions, functional coverage, statement/branch/condition. `<ip>_tcov`
+- **Two snapshots.** `<ip>_sim` = `tb_top` + the bind top (`tb/<ip>_binds.sv`): assertions,
+  functional coverage, statement/branch/condition. `<ip>_tcov`
   (`xsim_flow.sh ... --toggle`) = `tb_top` only: **code toggle**. On xsim a bound checker erases the
   toggles of the DUT nets it observes, and `$dumpvars` merely present in the design stops toggle
-  recording on others — so toggle is never read from `<ip>_sim`.
+  recording on others — so toggle is never read from `<ip>_sim`, and no `$dumpvars` is used at all.
+- **Waveforms:** `bash flow/scripts/xsim_flow.sh wave ips/<ip> <test> [<seed>]` builds a third
+  snapshot `<ip>_wave` (tb top + bind top, `-debug typical`, no coverage), logs every signal under the
+  tb top and writes `ips/<ip>/reports/waves/<test>_seed<seed>.wdb`; open it with
+  `xsim --gui <file>.wdb`. It never touches the coverage snapshots.
 - After the regression, `run_regression.py` reruns the union test (`<ip>_full_test`, seed 1) on
   `<ip>_tcov` and **verifies identical execution** against the normal run (both clean, same scoreboard
   check count, same register-bit toggle totals). The result is the `# toggle-build ...

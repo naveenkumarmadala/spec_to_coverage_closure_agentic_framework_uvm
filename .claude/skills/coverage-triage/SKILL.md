@@ -87,8 +87,8 @@ artifacts (every one of those waivers was wrong and has been removed):
 - **`$dumpvars` merely being present in the elaborated design** stops toggle recording on some DUT nets
   (a counter flop, single-use `wire x = expr` nets) — even `$dumpvars(1, top)`, and even inside an
   `if ($test$plusargs(...))` that never executes (gating it is NOT enough; measured). It is what
-  produced a module's "No Toggles in Module". **Rule: the dump is its own top module
-  (`tb/<ip>_dump.sv`, active with `+DUMP`) that the code-toggle snapshot does not elaborate.**
+  produced a module's "No Toggles in Module". **Rule: no `$dumpvars` anywhere in the design;
+  waveforms come from `xsim_flow.sh wave` (a separate `-debug` snapshot writing a `.wdb`).**
 - **A `bind`-ed white-box checker makes every DUT net it observes lose its toggle data** (the toggles
   are not re-attributed to the checker; they are just gone). Wrapping the port connection as `{x}` does
   not help. **Rule: binds live in their own top module (`tb/<ip>_binds.sv`); measure toggle on a second

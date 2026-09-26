@@ -275,8 +275,8 @@ def toggle_run(ip_dir: Path, tests, rows, reports: Path):
     bad = tb_top_toggle_hazards(ip_dir)
     if bad:
         print(f"   [FAIL] toggle build: tb top contains {', '.join(bad)} -- move binds to "
-              f"tb/{ip}_binds.sv (module {ip}_binds) and the dump to tb/{ip}_dump.sv "
-              f"(module {ip}_dump); see the uvm-env-scaffold skill")
+              f"tb/{ip}_binds.sv (module {ip}_binds) and delete the $dumpvars (waveforms: "
+              f"xsim_flow.sh wave); see the uvm-env-scaffold skill")
         return dict(test=union, ok=False, same=False, tag=None,
                     detail=f"tb top contains {', '.join(bad)}")
     r = sh(["bash", str(XFLOW), "elab", str(ip_dir), "--cov", "--toggle"])

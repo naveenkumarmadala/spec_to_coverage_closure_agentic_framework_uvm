@@ -63,7 +63,7 @@ log "Installing apt dependencies (sudo may prompt)…"
 sudo apt-get update -y
 sudo apt-get install -y --no-install-recommends \
   git make g++ python3 python3-pip python3-venv \
-  gtkwave wget curl unzip ca-certificates
+  wget curl unzip ca-certificates
 
 # --- 2. Verible (prebuilt release) -----------------------------------------
 if ! have verible-verilog-lint; then

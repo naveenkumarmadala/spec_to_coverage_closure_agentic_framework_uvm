@@ -92,6 +92,10 @@ source /tools/Xilinx/2025.1/Vivado/settings64.sh
 # one test end-to-end (compile + elaborate + run)
 bash flow/scripts/xsim_flow.sh smoke ips/pmtpc4 pmtpc4_sanity_test
 
+# one test with a waveform (Vivado .wdb), then open it in the Vivado wave viewer
+bash flow/scripts/xsim_flow.sh wave ips/pmtpc4 pmtpc4_pwm_duty_test 1
+xsim --gui ips/pmtpc4/reports/waves/pmtpc4_pwm_duty_test_seed1.wdb
+
 # full seeded regression (all tests × N seeds from ip_config) + functional/code coverage
 python3 flow/scripts/run_regression.py ips/pmtpc4
 ```

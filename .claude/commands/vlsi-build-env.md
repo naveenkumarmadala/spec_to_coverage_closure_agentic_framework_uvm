@@ -11,7 +11,7 @@ Stand up verification for IP `$1`.
 2. Delegate to the **tb-architect** agent (using the **uvm-env-scaffold** skill) to generate the
    SystemVerilog UVM env (`ips/$1/dv/sv/`) from the config + vPlan, reusing bus VIP from `vip/`
    (build it there once if missing). The mechanical layer comes from `flow/templates/`: `tb_top`
-   (no binds, no `$dumpvars`), the separate `tb/$1_binds.sv` and `tb/$1_dump.sv` tops, `full_test`,
+   (no binds, no `$dumpvars`), the separate `tb/$1_binds.sv` top, `full_test`,
    and the register-toggle vseq/test; the env wires in the reusable `reg_bit_toggle_cov`.
 3. Generate the coverage exclusion lists: `python3 flow/scripts/gen_exclusions.py ips/$1` (the
    regression re-runs it automatically too).

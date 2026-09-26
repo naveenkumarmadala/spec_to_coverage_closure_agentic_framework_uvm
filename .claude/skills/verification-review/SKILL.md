@@ -171,8 +171,8 @@ formula — so the coverage model was complicit, not just the assertion.
   *go up* is a finding.
 - **Check the toggle number was measured on an uncorrupted build before auditing any toggle waiver.**
   On xsim, `$dumpvars` merely present in the design (even gated, never executed) and `bind`-ed
-  white-box checkers both make DUT nets lose toggle data. Confirm: no `$dumpvars` in `tb_top` (the dump
-  is its own top, `tb/<ip>_dump.sv`); binds live in a separate top (`tb/<ip>_binds.sv`); code toggle
+  white-box checkers both make DUT nets lose toggle data. Confirm: no `$dumpvars` anywhere in the
+  testbench (waveforms come from `xsim_flow.sh wave`); binds live in a separate top (`tb/<ip>_binds.sv`); code toggle
   comes from `reports/_cov/toggle_report/` (the `<ip>_tcov` build without either top); and
   `reports/regression.txt` records the toggle build as
   `identical_to_normal_run=True`. Any toggle waiver justified as "tool artifact / alias blind spot /

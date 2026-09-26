@@ -58,8 +58,7 @@ module pmtpc4_tb_top;
         run_test();
     end
 
-    // Waveform dump lives in tb/pmtpc4_dump.sv (module pmtpc4_dump, +DUMP only), NOT here:
-    // on xsim the mere presence of $dumpvars in the elaborated design stops code-toggle
-    // recording on some DUT nets, even if it never executes. The code-toggle snapshot
-    // leaves that top out entirely.
+    // No $dumpvars anywhere: on xsim its mere presence in the elaborated design stops
+    // code-toggle recording on some DUT nets, even if it never executes. Waveforms come from
+    // `xsim_flow.sh wave` (Vivado-native .wdb from a separate debug snapshot).
 endmodule

@@ -24,12 +24,12 @@ for the exact architecture.
 - `sva/` — bound SVA modules (protocol timing, datapath/waveform rules, reset) with white-box cover.
 - `tb/<ip>_tb_top.sv` — clock/reset, DUT, interface(s), set vif in `config_db`, `run_test`
   (`flow/templates/tb_top.sv.j2`). **No `bind` and no `$dumpvars` in it.**
-- `tb/<ip>_binds.sv` (module `<ip>_binds`, every SVA/coverage bind — `binds.sv.j2`) and
-  `tb/<ip>_dump.sv` (module `<ip>_dump`, `+DUMP` waveform — `dump.sv.j2`), both listed in `filelist.f`
-  after the tb top. On xsim a bound checker erases the toggles of the DUT nets it observes and a
-  `$dumpvars` merely present in the design stops toggle recording on others, so `xsim_flow.sh`
-  measures code toggle on a snapshot of the tb top alone; `run_regression.py` refuses a toggle build
-  whose tb top still has a bind or a dump.
+- `tb/<ip>_binds.sv` (module `<ip>_binds`, every SVA/coverage bind — `binds.sv.j2`), listed in
+  `filelist.f` after the tb top. On xsim a bound checker erases the toggles of the DUT nets it observes
+  and a `$dumpvars` merely present in the design stops toggle recording on others, so `xsim_flow.sh`
+  measures code toggle on a snapshot of the tb top alone, and there is no `$dumpvars` anywhere:
+  waveforms come from `xsim_flow.sh wave` (Vivado-native `.wdb`). `run_regression.py` refuses a toggle
+  build whose tb top still has a bind or a `$dumpvars`.
 - **Register-bit toggle coverage** (standard, every IP): `include` `reg_bit_toggle_cov.svh` (from
   `vip/common/sv`) and the generated `<ip>_reg_toggle_cfg.svh` in the test package; in the env create
   `reg_bit_toggle_cov` when coverage is on, fill `pulse_suffixes` with `<ip>_reg_pulse_fields(...)`,

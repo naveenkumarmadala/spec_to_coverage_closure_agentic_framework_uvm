@@ -6,7 +6,6 @@ module -mon_cb*
 module -pmtpc4_apb_sva*
 module -pmtpc4_binds*
 module -pmtpc4_channel_sva*
-module -pmtpc4_dump*
 module -pmtpc4_presc_sva*
 module -pmtpc4_pwm_cov*
 module -pmtpc4_ral_pkg*

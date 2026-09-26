@@ -23,6 +23,9 @@ xsim*.log
 text_report/
 codeCoverageReport/
 functionalCoverageReport/
+# waveforms from `xsim_flow.sh wave` (Vivado .wdb) and its generated tcl
+**/reports/waves/
+wave_run.tcl
 # waveform-viewer layouts point at local, uncommitted .wdb files
 *.wcfg
 webtalk*.log
