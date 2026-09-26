@@ -56,7 +56,9 @@ delete, not a track to maintain.
    because on xsim a bound checker or a `$dumpvars` in the design silently corrupts toggle recording
    (so there is no `$dumpvars` at all — waveforms come from `xsim_flow.sh wave`, a Vivado `.wdb`).
    The generated register block's toggle, which xsim cannot measure, is measured by the reusable
-   `reg_bit_toggle_cov` + `<ip>_reg_toggle_test`. Quote toggle from `reports/_cov/toggle_summary.txt`
+   `reg_bit_toggle_cov` + `<ip>_reg_toggle_test`. Every result is on one page,
+   `reports/coverage_dashboard.html` (written by `run_regression.py`). Quote toggle from it or from
+   `reports/_cov/toggle_summary.txt`
    and `reg_bit_toggle.txt`, never from the xcrg dashboard (it counts the UVM library file at 0%).
 5. **Everything runs on the free toolchain in WSL2.** The UVM simulator is **Vivado xsim** (free
    ML Standard Edition, installed for Linux inside WSL2). If a construct isn't supported by xsim,

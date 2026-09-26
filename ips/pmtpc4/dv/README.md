@@ -129,21 +129,18 @@ Under the hood: `xvlog -sv -L uvm -f sv/filelist.f` → `xelab -L uvm -timescale
 - **`freeze_vseq` COUNT check** — was racy (compared count read *before* MODULE_EN=0 to *after*);
   replaced with a post-freeze stability + non-zero check.
 
-## Coverage — see [`../reports/coverage_summary.md`](../reports/coverage_summary.md) (always the
-current numbers; the two bullets below are a snapshot as of 2026-09-19, not a source of truth — read
-the generated report, don't trust this file's numbers if they look old)
+## Coverage — open [`../reports/coverage_dashboard.html`](../reports/coverage_dashboard.html)
 
-Union coverage is measured from `pmtpc4_full_test` (all vseqs in one simulation — reliable, since
-xcrg cross-db merge is broken on xsim 2025.1 and xsim overwrites the shared db per run).
+Every current number is on that one page (written by `run_regression.py`): regression, static gate,
+functional per covergroup, statement/branch/condition per file, bit-weighted code toggle, register-bit
+toggle, each linked to its xcrg detail report. Per-requirement roll-up:
+[`../reports/coverage_summary.md`](../reports/coverage_summary.md); every waiver and known hole with its
+justification: [`../reports/coverage_waivers.md`](../reports/coverage_waivers.md). This file does not
+repeat the numbers, so it cannot go stale.
 
-- **Functional: 99.72%/99.80% (type/instance), net of one justified waiver** — every covergroup at
-  100% except `cg_apb` (`cp_wait.many`, waits≥2, unreachable: this IP inserts ≤1 APB wait state by
-  spec). Full per-covergroup detail in `reports/coverage_waivers.md`.
-- **Code: Statement 99.9% / Branch 98.0% / Condition 100% / Toggle 46.5%.** Statement/branch/condition
-  are effectively closed (residual is documented unreachable-by-construction cases). Toggle's residual
-  is dominated by PeakRDL `automatic`-local artifacts and pass-through-alias signals the tool can't
-  instrument (not real stimulus gaps — see `reports/coverage_waivers.md`'s "2026-09-19 toggle-coverage
-  deep-dive" for the full, hole-by-hole classification and open action items).
+Coverage is measured from `pmtpc4_full_test` (all vseqs in one simulation — reliable, since xcrg
+cross-db merge is broken on xsim 2025.1 and xsim overwrites the shared db per run); code toggle comes
+from a separate toggle-only snapshot of the same test and seed.
 
 **xcrg notes (xsim 2025.1):** point `-cov_db_dir` at the *parent* dir, **pre-create the `-report_dir`**
 (xcrg won't create the code-cov report dir itself), run from a writable cwd.

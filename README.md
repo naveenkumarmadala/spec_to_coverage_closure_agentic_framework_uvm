@@ -1,8 +1,8 @@
 # VLSI Front-End Agentic Framework
 
 > **Status.** The single-IP framework, proven end-to-end on the PMTPC-4 timer/PWM IP — release
-> [`pmtpc4-v1.0`](../../releases/tag/pmtpc4-v1.0): 41/41 regression; functional coverage 99.72%,
-> union 99.90%; statement 99.87 / branch 98.09 / condition 100; DUT code toggle 458/490 = 100% net
+> [`pmtpc4-v1.0`](../../releases/tag/pmtpc4-v1.0): 41/41 regression; functional coverage 99.72%
+> (instance score 99.90%); statement 99.87 / branch 98.09 / condition 100; DUT code toggle 458/490 = 100% net
 > of one documented constant net; register-bit toggle 486/486.
 
 A multi-agent framework that drives the **front-end VLSI development lifecycle** for any

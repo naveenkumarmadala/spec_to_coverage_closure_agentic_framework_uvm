@@ -104,6 +104,8 @@ python3 flow/scripts/run_regression.py ips/pmtpc4            # all tests × N se
 python3 flow/scripts/run_regression.py ips/pmtpc4 --seeds 25 # override seed count
 python3 flow/scripts/run_regression.py ips/pmtpc4 --no-cov   # faster, skip coverage
 ```
+**Open `ips/pmtpc4/reports/coverage_dashboard.html` in a browser** for every result on one page (the
+correct bit-weighted toggle included; each number links to the xcrg detail report).
 Per-run logs land in `ips/pmtpc4/reports/_runs/seed_<N>/`, a summary in `reports/regression.txt`, and
 merged functional + code coverage under `reports/_cov/_merged/` (see the **regression-runner** skill).
 

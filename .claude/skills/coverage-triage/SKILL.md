@@ -112,7 +112,8 @@ documented for 2026.1 changes them):
   can be listed twice, and every exclusion form removes only one copy. Report the remaining copy as a
   documented constant (the DUT toggle summary does this for any sidecar-listed signal).
 - **The xcrg dashboard's toggle aggregate is not a DUT metric** — it averages over report files and
-  always counts the UVM library's file at 0%. Use `reports/_cov/toggle_summary.txt` (bit-weighted).
+  always counts the UVM library's file at 0%. Use `reports/_cov/toggle_summary.txt` (bit-weighted),
+  also shown on `reports/coverage_dashboard.html`.
 
 **So a generated register block's toggle cannot be measured by xsim code coverage.** Exclude that module
 from the *toggle* report only (a `module -` line in the toggle sidecar; `gen_exclusions.py` keeps it out of

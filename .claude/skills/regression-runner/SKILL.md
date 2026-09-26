@@ -112,6 +112,11 @@ reported coverage, confirm it is called from `<ip>_full_test`'s body, not just f
   `reports/_cov/reg_bit_toggle.txt` (register-bit toggle from `reg_bit_toggle_cov`: totals + every
   uncovered bit/direction). `run_regression.py ips/<ip> --reports-only` regenerates all of them from
   the existing databases without simulating.
+- **`reports/coverage_dashboard.html`** (`flow/scripts/gen_dashboard.py`, run at the end of every
+  regression and `--reports-only`): one self-contained page — regression per test, static gate,
+  functional per covergroup, statement/branch/condition per DUT file ("—" where a file has nothing of
+  that kind), the bit-weighted code toggle per file with every uncovered bit, register-bit toggle —
+  each linked to the xcrg detail page. Point people here; it is git-ignored (links into `_cov/`).
 - **Never quote the xcrg dashboard's toggle aggregate.** On xsim 2025.1 it is an unweighted average
   over report *files* and always includes the UVM library file (`xlnx_uvm_package.sv`) at 0% — no
   `file -`/`dir -` directive removes it (measured: dashboard 65.31% vs. 93.47% real bit-weighted).

@@ -473,6 +473,11 @@ def coverage_reports(ip_dir: Path, tests, tog=None):
             print(f"   coverage: register-bit toggle (RAL-derived) {c}/{t} bit-directions = {p}%"
                   f"  -> _cov/reg_bit_toggle.txt")
 
+    # one page with every result, the correct (bit-weighted) toggle, and links into xcrg
+    r = sh([sys.executable, str(HERE / "gen_dashboard.py"), str(ip_dir)])
+    print("   dashboard: " + ("reports/coverage_dashboard.html" if r.returncode == 0
+                              else "FAILED -- " + (r.stderr.strip().splitlines() or ["?"])[-1]))
+
 
 def dut_toggle_summary(ip_dir: Path, rep: Path, out: Path):
     """Bit-weighted DUT code toggle, computed from xcrg's own per-file toggle tables.
