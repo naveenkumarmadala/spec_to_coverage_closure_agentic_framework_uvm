@@ -41,6 +41,7 @@ class pmtpc4_full_test extends pmtpc4_base_test;
         pmtpc4_pwm_all_channels_vseq pac  = pmtpc4_pwm_all_channels_vseq::type_id::create("pac");
         pmtpc4_freeze_start_vseq     fst  = pmtpc4_freeze_start_vseq::type_id::create("fst");
         pmtpc4_selfclear_race_vseq   scr  = pmtpc4_selfclear_race_vseq::type_id::create("scr");
+        pmtpc4_reg_toggle_vseq       rtg  = pmtpc4_reg_toggle_vseq::type_id::create("rtg");
         phase.raise_objection(this);
         run_vseq(rr); run_vseq(rw); run_vseq(ro); run_vseq(wo); run_vseq(rsv); run_vseq(un);
         run_vseq(wdu);           // VP-REG-ACCESS: garbage-upper-bits write robustness
@@ -65,6 +66,7 @@ class pmtpc4_full_test extends pmtpc4_base_test;
         run_vseq(pac);           // VP-PWM-BLACKBOX
         run_vseq(fst);           // F4: CH_EN/CH_START during freeze must not be swallowed
         run_vseq(scr);           // F3: coincident CHx_CTRL write must not defeat one-shot self-clear
+        run_vseq(rtg);           // register-block toggle closure (every field bit rise+fall, bus-observed)
         #100ns;
         phase.drop_objection(this);
     endtask

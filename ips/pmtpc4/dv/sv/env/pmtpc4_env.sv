@@ -11,6 +11,7 @@ class pmtpc4_env extends uvm_env;
     pmtpc4_pwm_agent_t            pwm_agt;   // passive: observes pwm_out[3:0]
     pmtpc4_scoreboard             scb;
     pmtpc4_coverage               cov;
+    reg_bit_toggle_cov            rtog;      // register-bit toggle (RAL-derived, DUT-observed)
     pmtpc4_pwm_coverage           pwm_cov;
     pmtpc4_pwm_blackbox_checker   pwm_bb;    // VP-PWM-BLACKBOX checker
     pmtpc4_reg_block_t            ral;   // aliased RAL block (name collides with DUT module 'pmtpc4')
@@ -33,6 +34,7 @@ class pmtpc4_env extends uvm_env;
         end
         if (cfg.en_scoreboard) scb = pmtpc4_scoreboard::type_id::create("scb", this);
         if (cfg.en_coverage)   cov = pmtpc4_coverage::type_id::create("cov", this);
+        if (cfg.en_coverage)  rtog = reg_bit_toggle_cov::type_id::create("rtog", this);
         if (ral == null) begin
             ral = new("ral");   // PeakRDL RAL block is not factory-registered; construct with new()
             ral.build();
@@ -51,6 +53,13 @@ class pmtpc4_env extends uvm_env;
         predictor.adapter = adapter;
         ral.default_map.set_sequencer(agent.seqr, adapter);
         ral.default_map.set_auto_predict(0);
+        // Register-bit toggle coverage: hooks every RAL field's post_predict (fed by the
+        // explicit predictor above, i.e. by what the DUT actually returned on the bus).
+        // singlepulse fields come from the RDL via the generated <ip>_reg_toggle_cfg.svh.
+        if (rtog != null) begin
+            pmtpc4_reg_pulse_fields(rtog.pulse_suffixes);
+            rtog.attach(ral);
+        end
         // Black-box pwm_out observation. The analysis port is the single hand-off
         // point: the coverage subscriber attaches here, and so will the VP-PWM-BLACKBOX
         // per-pin reference-model checker when it is added.
@@ -75,5 +84,6 @@ class pmtpc4_env extends uvm_env;
     virtual function void handle_reset();
         if (ral != null) ral.reset();        // RAL mirror/desired -> reset values
         if (scb != null) scb.handle_reset(); // scoreboard readback shadow
+        if (rtog != null) rtog.handle_reset(); // register-bit toggle baseline -> reset values
     endfunction
 endclass

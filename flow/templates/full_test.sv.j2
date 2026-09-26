@@ -13,6 +13,11 @@ class {{ ip }}_full_test extends {{ ip }}_base_test;
         // {{ '{{' }} AGENT: create + run_vseq() every vseq the IP defines, in a sensible order:
         //   register (RAL) -> directed feature scenarios -> interrupts -> error/PSLVERR
         //   -> coverage-closure sweep (all channels/all states) -> constrained-random traffic. {{ '}}' }}
+        // Standard for every IP, always LAST: register-block toggle closure (reg_bit_toggle_cov).
+        begin
+            {{ ip }}_reg_toggle_vseq rtg = {{ ip }}_reg_toggle_vseq::type_id::create("rtg");
+            run_vseq(rtg);
+        end
         #100ns;
         phase.drop_objection(this);
     endtask

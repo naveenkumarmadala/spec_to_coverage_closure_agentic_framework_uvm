@@ -237,7 +237,8 @@
     <div class="stat"><span class="n">11</span><span class="l">Commands</span></div>
     <div class="stat"><span class="n">1</span><span class="l">UVM track (SV/UVM)</span></div>
     <div class="stat"><span class="n">xsim</span><span class="l">Free UVM simulator</span></div>
-    <div class="stat"><span class="n">4</span><span class="l">Real RTL bugs caught</span></div>
+    <div class="stat"><span class="n">8</span><span class="l">Real RTL bugs caught</span></div>
+    <div class="stat"><span class="n">40/40</span><span class="l">Seeded regression, green</span></div>
   </div>
   <div class="legend">
     <span class="item"><span class="swatch exec"></span>Agent executes directly</span>
@@ -254,8 +255,8 @@
   <a href="#architecture">1 · System architecture</a><span class="sep">/</span>
   <a href="#p0">2 · Ingest &amp; confirm</a><span class="sep">/</span>
   <a href="#p1">3 · Spec</a><span class="sep">/</span>
-  <a href="#p2">4 · Registers, RTL &amp; static gate</a><span class="sep">/</span>
-  <a href="#p3">5 · vPlan &amp; UVM env</a><span class="sep">/</span>
+  <a href="#p2">4 · Design thread — registers, RTL &amp; static gate</a><span class="sep">/</span>
+  <a href="#p3">5 · Verification thread — vPlan &amp; UVM env</a><span class="sep">/</span>
   <a href="#p3a">5a · How a cycle gets checked</a><span class="sep">/</span>
   <a href="#p4">6 · Test authoring</a><span class="sep">/</span>
   <a href="#p5">7 · Coverage closure loop</a><span class="sep">/</span>
@@ -270,51 +271,69 @@
 <!-- ============================================================ -->
 <section id="architecture" class="th-build">
   <div class="sec-head"><span class="sec-num">01</span><h2>System Architecture</h2></div>
-  <p class="sec-sub">One orchestrator, thirteen specialists, one verification environment, and an independent review fork.</p>
+  <p class="sec-sub">One orchestrator, thirteen specialists, two independent threads that converge only at the simulation gate — each with its own review agent that never reads the other thread's collateral.</p>
 
   <div class="panel">
 <pre class="mermaid">
 flowchart TB
     U["Requirement spec doc\n(.md / .pdf / .docx) + ip_config.yaml"]:::disk
-    O["vlsi-orchestrator\nsequences 12 stages, enforces every gate"]:::exec
+    O["vlsi-orchestrator\nsequences both threads, enforces every gate"]:::exec
     U --> O
+    S0["Stage 0 - ingest+confirm\n(spec-ingestor, CONFIRMATION GATE)"]:::dispatch
+    O --> S0
+    S12["Stages 1-2 - requirements + design_spec\n(shared root both threads read)"]:::dispatch
+    S0 --> S12
 
-    subgraph PIPE["Stage sequence (0 -> 11)"]
-      direction LR
-      S0["0 ingest+confirm"]:::dispatch --> S1["1-2 spec"]:::dispatch --> S2["3-4 registers+RTL"]:::dispatch --> S3["5 static gate"]:::dispatch --> S4["5.5 design review"]:::dispatch --> S5["6 vPlan"]:::dispatch --> S6["7 env"]:::dispatch --> S7["8-9 tests"]:::dispatch --> S8["10 closure"]:::dispatch --> S9["11 verif. review"]:::dispatch
+    subgraph DTHREAD["DESIGN THREAD (stages 3-5.5)"]
+      direction TB
+      D3["3 registers\n(register-designer)"]:::dispatch --> D4["4 RTL\n(rtl-designer)"]:::dispatch --> D5["5 static gate\nVerible->Verilator->Yosys"]:::dispatch --> D55["5.5 design-reviewer\nspec-literal, READ-ONLY,\nnever reads dv/"]:::exec
     end
-    O --> PIPE
+    S12 --> D3
 
-    subgraph FORK1["SystemVerilog UVM env (stage 7-10)"]
-      direction LR
-      SV["dv/sv/ - one UVM env\ncompile+elab+run on Vivado xsim\n(-L uvm, -cov, -sv_seed)"]:::exec
+    subgraph VTHREAD["VERIFICATION THREAD (stages 6-7)"]
+      direction TB
+      V6["6 vPlan\n(verification-planner)\nneeds only the register map"]:::dispatch --> V7["7 env authoring\n(tb-architect)\ndv/sv/ - does NOT need\nworking RTL to author"]:::dispatch
     end
-    PIPE -.-> FORK1
+    S12 --> V6
 
-    subgraph FORK2["Fork - independent review (stage 5.5 & 11)"]
+    GATE{{"SIMULATION GATE\nboth threads must be green:\naccepted RTL AND built env"}}:::decision
+    D55 --> GATE
+    V7 --> GATE
+
+    subgraph SIM["Stages 8-10 - on Vivado xsim"]
       direction LR
-      DR["design-reviewer\nspec-literal, read-only"]:::exec
-      VR["verification-reviewer\nchecker vacuity + mutation seeding"]:::exec
+      SV["dv/sv/ - one UVM env\ncompile+elab+run\n(-L uvm, -cov, -sv_seed)\nreg verify -> functional -> closure"]:::exec
     end
-    PIPE -.-> FORK2
+    GATE --> SIM
+    SIM -.RTL fix loops back.-> D4
+
+    VR["11 verification-reviewer\nchecker vacuity + mutation seeding +\nindependently re-derives from spec,\nnever reads design-reviewer's findings"]:::exec
+    SIM --> VR
+    VR -.confirmed RTL finding.-> D55
 
     RULES["Rules & Steering\nCLAUDE.md - ip_config schema - vip_registry.yaml\n12 skill files (durable methodology)"]:::info
     SCRIPTS["Scripts\nflow/scripts/validate_config.py\nxsim_flow.sh (compile/elab/run)\nrun_regression.py (seed sweep + coverage)"]:::script
     O -.governs.-> RULES
-    PIPE -.calls.-> SCRIPTS
+    SIM -.calls.-> SCRIPTS
 
     classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff,font-weight:600;
     classDef dispatch fill:#3B5166,stroke:#243440,color:#ffffff;
     classDef script fill:#EDEFE9,stroke:#1F6F5C,stroke-dasharray:4 2,color:#131A19;
     classDef info fill:#E3E8ED,stroke:#3B5166,color:#131A19;
+    classDef decision fill:#E3E8ED,stroke:#3B5166,color:#131A19,font-weight:600;
     classDef disk fill:#ffffff,stroke:#6C7672,color:#131A19,stroke-width:1px;
 </pre>
   </div>
-  <p style="color:var(--ink-soft); font-size:14.5px;">Unlike a fixed hub-and-spoke coverage tool, this
-    framework spans the <em>whole</em> front-end lifecycle — the orchestrator's 12 stages are mostly
-    sequential and gated, not fanned out. There is one verification environment (standard SystemVerilog
-    UVM, run on Vivado xsim); the genuine parallel fork is the two independent review agents, each
-    running in fresh context with no stake in the changes it's checking.</p>
+  <p style="color:var(--ink-soft); font-size:14.5px;">The design thread and verification thread run
+    independently from the moment <code>requirements.md</code>/<code>design_spec.md</code> exist —
+    vPlan authoring only needs the register map, and env authoring (RAL, scoreboard skeleton,
+    coverage model, SVA) doesn't need working RTL, only RTL's <em>interface</em>. The two threads
+    share nothing else until the simulation gate, where verification's stimulus runs against design's
+    RTL for the first time. Each thread carries its own independent review agent, scoped to its own
+    artifacts and explicitly forbidden from reading the other thread's collateral — <code>design-reviewer</code>
+    never opens <code>dv/</code>, <code>verification-reviewer</code> re-derives expected checker
+    behavior from spec before ever comparing it to the RTL, and neither reads the other's report
+    before finishing its own.</p>
 </section>
 
 <!-- ============================================================ -->
@@ -374,8 +393,8 @@ flowchart LR
 
 <!-- ============================================================ -->
 <section id="p2" class="th-silicon">
-  <div class="sec-head"><span class="sec-num">04</span><h2>Stage 3-5.5 — Registers, RTL &amp; the Static / Design Gates</h2></div>
-  <p class="sec-sub">Agents: register-designer, rtl-designer, lint-static-checker, design-reviewer · Two independent gates, not one.</p>
+  <div class="sec-head"><span class="sec-num">04</span><h2>Design Thread (Stages 3-5.5) — Registers, RTL &amp; the Static / Design Gates</h2></div>
+  <p class="sec-sub">Agents: register-designer, rtl-designer, lint-static-checker, design-reviewer · Runs independently of the verification thread below — the only thing they share is the confirmed spec they both started from. Two independent gates within this thread, not one.</p>
 
   <div class="panel">
 <pre class="mermaid">
@@ -416,8 +435,8 @@ flowchart TD
 
 <!-- ============================================================ -->
 <section id="p3" class="th-silicon">
-  <div class="sec-head"><span class="sec-num">05</span><h2>Stage 6-7 — Verification Plan &amp; UVM Environment</h2></div>
-  <p class="sec-sub">Agents: verification-planner, tb-architect · One SystemVerilog UVM env, built at full capability and actually run on xsim.</p>
+  <div class="sec-head"><span class="sec-num">05</span><h2>Verification Thread (Stages 6-7) — Plan &amp; UVM Environment</h2></div>
+  <p class="sec-sub">Agents: verification-planner, tb-architect · Runs in parallel with the design thread above — vPlan needs only the register map, and env authoring doesn't need working RTL. One SystemVerilog UVM env, built at full capability and actually run on xsim once both threads reach the simulation gate.</p>
 
   <div class="panel">
 <pre class="mermaid">
@@ -568,20 +587,23 @@ flowchart TD
 
 <!-- ============================================================ -->
 <section id="p6" class="th-verify">
-  <div class="sec-head"><span class="sec-num">08</span><h2>Stage 11 — Independent Review</h2></div>
-  <p class="sec-sub">Agents: design-reviewer, verification-reviewer · Fresh context, no stake in the changes just made.</p>
+  <div class="sec-head"><span class="sec-num">08</span><h2>Independent Review — One Per Thread, Keyed to Its Own Changes</h2></div>
+  <p class="sec-sub">Agents: design-reviewer (design thread, stage 5.5), verification-reviewer (verification thread, stage 11) · Fresh context each run, no stake in the changes just made, and neither reads the other's report first.</p>
 
   <div class="panel">
 <pre class="mermaid">
 flowchart TD
-    A["Closure output\n(RTL + reports/coverage_summary.md)"]:::disk --> B["design-reviewer"]:::exec
-    A --> C["verification-reviewer"]:::exec
-    B --> D["re-derive expected behavior\nfrom spec, cold - compare to RTL"]:::exec
-    C --> E["checker vacuity check +\nMUTATION SPOT-CHECK:\nseed bug -> rerun -> confirm FAIL -> revert"]:::exec
-    D --> F{{"any CONFIRMED finding?"}}:::decision
-    E --> F
-    F -->|yes| G["back to owning agent\nwith exact evidence"]:::fail
-    F -->|no| H["Signoff-ready"]:::pass
+    RTLCH["RTL/RDL changed\n(design thread, or coverage-closure\nediting RTL during triage)"]:::disk --> DR["design-reviewer\nre-derive expected behavior\nfrom spec, cold - never reads dv/"]:::exec
+    DVCH["DV collateral changed\n(verification thread, or closure\nadding a test/checker)"]:::disk --> VR["verification-reviewer\nre-derive expected CHECKER behavior\nfrom spec first, THEN compare to DV code +\nMUTATION SPOT-CHECK: seed bug -> rerun -> confirm FAIL -> revert"]:::exec
+
+    DR --> F1{{"CONFIRMED finding?"}}:::decision
+    VR --> F2{{"CONFIRMED finding?"}}:::decision
+    F1 -->|yes| G1["back to rtl-designer\nwith exact evidence"]:::fail
+    F2 -->|yes| G2["back to tb-architect/test-writer\nwith exact evidence"]:::fail
+    F1 -->|no| H1["Design thread signoff-ready"]:::pass
+    F2 -->|no| H2["Verification thread signoff-ready"]:::pass
+    G1 -.re-run scoped to fix.-> DR
+    G2 -.re-run scoped to fix.-> VR
 
     classDef exec fill:#1F6F5C,stroke:#0E4A3C,color:#ffffff;
     classDef decision fill:#E3E8ED,stroke:#3B5166,color:#131A19,font-weight:600;
@@ -591,15 +613,22 @@ flowchart TD
 </pre>
   </div>
   <ul class="rules">
-    <li><span class="rid">design-review skill</span> Rebuild the contract from the spec <em>before</em> reading the RTL — an inline comment's justification is a claim, never proof.</li>
+    <li><span class="rid">design-reviewer.md</span> Never reads <code>ips/&lt;ip&gt;/dv/</code> — independence from the verification thread is a stated rule, not an informal convention. Rebuild the contract from the spec <em>before</em> reading the RTL; an inline comment's justification is a claim, never proof.</li>
+    <li><span class="rid">verification-reviewer.md</span> Reads <code>requirements.md</code>/<code>design_spec.md</code> as a primary input, on equal footing with the DV collateral — independently re-derives what a checker <em>should</em> check before looking at what it actually does, the same discipline design-reviewer applies to RTL. A checker comment that cites RTL behavior instead of a spec clause is itself a finding.</li>
     <li><span class="rid">verification-review skill</span> Mutation/bug-seeding is the standard way to prove a checker works: seed an obviously-wrong change, confirm something fails, always revert immediately — never leave a seeded bug in the tree.</li>
-    <li><span class="rid">both skills</span> Report, don't fix. Reviewing and fixing in the same pass re-introduces the confirmation bias the review exists to avoid.</li>
+    <li><span class="rid">both agents</span> Report, don't fix, and don't read each other's findings before finishing your own — reviewing-and-fixing in the same pass, or anchoring on the other reviewer's conclusion, both re-introduce the confirmation bias independent review exists to avoid.</li>
   </ul>
   <div class="example"><b>Real example — PMTPC-4:</b> the verification-reviewer seeded two deliberate bugs
     — a comparison operator flip in the PWM channel core, and a removed write-gate in the APB error
     decode — in two different modules. Both were caught immediately by the existing checks (one via
     6 reference-model errors, the other at three independent layers simultaneously). Both were reverted
-    and confirmed clean via <code>git diff</code> before the full suite was re-run green.</div>
+    and confirmed clean via <code>git diff</code> before the full suite was re-run green. In a later
+    pass, <code>design-reviewer</code> and <code>verification-reviewer</code> were dispatched at the
+    same time against the same open question (a PWM-gating formula that looked narrower in the spec
+    than in the RTL) — neither was shown the other's conclusion, and both independently recommended
+    widening the spec to match the RTL rather than narrowing the RTL, for the same underlying reason
+    (the spec's own stated requirement carried no state qualifier). Two independently-reached
+    conclusions agreeing is real corroborating evidence in a way one reviewer's opinion never is.</div>
 </section>
 
 <!-- ============================================================ -->
@@ -633,7 +662,7 @@ flowchart LR
 <!-- ============================================================ -->
 <section id="lessons" class="th-warn">
   <div class="sec-head"><span class="sec-num">10</span><h2>Lessons Learned</h2></div>
-  <p class="sec-sub">Nine real discoveries from PMTPC-4's first run through the pipeline, and the permanent change each one produced.</p>
+  <p class="sec-sub">Nine discoveries from PMTPC-4's first run through the pipeline, plus a second, deeper audit pass (design thread and verification thread run as fully independent, mutually-blind reviews — see Section 8) that found five more real bugs and three durable methodology lessons. Full evidence for the second pass lives in <code>ips/pmtpc4/reports/coverage_waivers.md</code>; this table is the condensed, permanent-change version.</p>
   <div class="tbl-wrap"><table>
     <thead><tr><th class="num">#</th><th>Discovery</th><th>Impact</th><th>Change made</th></tr></thead>
     <tbody>
@@ -646,6 +675,12 @@ flowchart LR
       <tr><td class="num">7</td><td>On xsim, a white-box SVA bound to a combinational output alias samples X in the preponed region every clock</td><td>Valid-state assertion fired spuriously on every cycle despite correct RTL</td><td>Bind white-box SVA to the registered signal, not the <code>assign</code> alias; documented in <code>uvm-env-scaffold</code></td></tr>
       <tr><td class="num">8</td><td>Mid-RUNNING COMPARE write applied live instead of shadowed (Design Spec §7.4)</td><td>Passed lint, elaboration, and first-pass sim</td><td>Caught only by literal spec re-read; shadow register added, model fixed to match</td></tr>
       <tr><td class="num">9</td><td>No independent review stage existed</td><td>Coverage-closure graded its own homework</td><td><code>design-reviewer</code> / <code>verification-reviewer</code> added, validated day-one via 2 live mutation spot-checks</td></tr>
+      <tr><td class="num">10</td><td>PWM stayed high one extra cycle after soft-disable (F1) — a checker/coverage bin had marked the correct behavior "structurally unreachable," hiding the bug from both the coverage report and a casual read</td><td>Passed the entire existing regression; only found by a fresh, cold RTL-vs-spec re-derivation</td><td>RTL fixed; downgraded the covergroup bin, added a dedicated property as the real guard (<code>a_pwm_low_in_idle</code>)</td></tr>
+      <tr><td class="num">11</td><td>A field with both <code>hwset</code> and a coincident SW write defaulted to <code>precedence=sw</code> in SystemRDL, silently dropping a one-shot self-clear (F3)</td><td>Race only manifests when a write lands the exact cycle the hardware self-clears — invisible to typical directed stimulus</td><td><code>precedence=hw</code> added to the RDL field; closed with a "spray of writes" test across the whole race window rather than trying to hit one exact cycle</td></tr>
+      <tr><td class="num">12</td><td>A freeze (MODULE_EN=0) silently swallowed a CH_EN/CH_START transition that arrived while frozen (F4)</td><td>The natural bring-up order (disable, configure, enable, then enable module) left every channel stuck in IDLE forever</td><td>Latched the pending transition through the freeze window; fixing it also required updating two independent checker mirrors that had gone stale relative to the new RTL — exactly the failure mode spec-independence discipline exists to catch</td></tr>
+      <tr><td class="num">13</td><td>An assertion cross (<code>cross A, B;</code>) with no <code>iff</code> of its own samples every clock, not gated by its coverpoints' <code>iff</code> — a genuine SystemVerilog semantics gap, not a typo (F15)</td><td>One cross's true sample count was ~560x its own coverpoint's correctly-gated count; "100% covered" meant nothing about the intended event</td><td>Found in 5 crosses across one environment; rule added to <code>tb-architect.md</code> to always give a cross the same <code>iff</code> as its coverpoints</td></tr>
+      <tr><td class="num">14</td><td>"Delete a named alias wire, inline its expression at the one use site" looks like the same fix that worked once (a mixed-bits signal split into two <em>other named</em> signals) but is a different move with the opposite effect — confirmed by direct measurement, not theory</td><td>One module's toggle-coverage score dropped from 100% to 40% after "fixing" it this way; an anonymous inlined expression has no name left for the waiver file to reference</td><td>Reverted in full; explicit anti-pattern warning added to <code>coverage-triage</code> distinguishing the two techniques</td></tr>
+      <tr><td class="num">15</td><td>A hierarchical port reference between two module instances passes Verible + Verilator cleanly, but <code>sv2v</code> silently truncates its width when flattening for Yosys</td><td>Would have been a synthesis-breaking bug (32-bit write data truncated to 1 bit) had the full 3-tool gate not been run before trusting the change</td><td>Reverted; rule added to <code>lint-static-checker.md</code> to treat any Yosys "Resizing cell port" warning as a hard gate failure</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -653,20 +688,24 @@ flowchart LR
 <!-- ============================================================ -->
 <section id="results" class="th-build">
   <div class="sec-head"><span class="sec-num">11</span><h2>Key Results — PMTPC-4</h2></div>
-  <p class="sec-sub">4-channel timer/PWM controller, APB, 5 binding errata. The reference IP for the single-track SV/UVM + xsim framework.</p>
+  <p class="sec-sub">4-channel timer/PWM controller, APB, 5 binding errata. The reference IP for the single-track SV/UVM + xsim framework. Numbers below are from the live regression as of the most recent run, not aspirational.</p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
     <tbody>
       <tr><td>Verification methodology</td><td class="num">standard SystemVerilog UVM (single track)</td></tr>
       <tr><td>Simulator</td><td class="num">AMD Vivado xsim (free ML Standard)</td></tr>
       <tr><td>SV/UVM env on xsim</td><td class="num">compiles + elaborates + runs (-L uvm)</td></tr>
-      <tr><td>Sanity + error tests</td><td class="num">green — UVM_ERROR 0, 0 SVA fails, scoreboard checking</td></tr>
+      <tr><td>Seeded regression</td><td class="num">40/40 runs passed — UVM_ERROR 0, 0 SVA fails, scoreboard checking</td></tr>
       <tr><td>Constrained randomization</td><td class="num">native rand/constraint/dist, -sv_seed</td></tr>
-      <tr><td>Coverage</td><td class="num">functional + code via xelab -cov / xcrg merge</td></tr>
-      <tr><td>RTL design bugs found &amp; fixed</td><td class="num">4</td></tr>
+      <tr><td>Functional coverage (union)</td><td class="num">99.7% — sole residual is one signed-off waiver (<code>cg_apb.cp_wait.many</code>)</td></tr>
+      <tr><td>Code coverage — statement / branch / condition</td><td class="num">99.9% / 98.1% / 100.0%</td></tr>
+      <tr><td>Code coverage — toggle</td><td class="num">DUT code toggle 458/490 bits = 93.5% (100% net of 1 documented constant net), measured on a separate toggle snapshot (no binds, no <code>$dumpvars</code>) proven identical to the normal run; register block measured separately as register-bit toggle 486/486 = 100% (<code>reg_bit_toggle_cov</code>). The earlier 46.0% was a measurement artifact — see <code>coverage_waivers.md</code>, 2026-09-26 correction</td></tr>
+      <tr><td>RTL design bugs found &amp; fixed (first pass + second audit pass)</td><td class="num">4 + 4 (F1/F3/F4/F5)</td></tr>
       <tr><td>xsim bring-up bugs caught &amp; fixed</td><td class="num">4 (keyword, RAL collision, RAL new, SVA X-sampling)</td></tr>
-      <tr><td>Seeded regression + coverage closure</td><td class="num">in progress on xsim</td></tr>
+      <tr><td>Coverage-model correctness bugs found (second audit pass)</td><td class="num">1 class, 5 instances (F15 — ungated covergroup crosses)</td></tr>
+      <tr><td>Toolchain gotchas caught by the static gate before shipping</td><td class="num">1 (sv2v silently truncating a hierarchical port reference's width)</td></tr>
       <tr><td>Assertion coverage</td><td class="num">not reported by xsim — evidence via scoreboard + SVA cover</td></tr>
+      <tr><td>Source</td><td class="num">this repository (<code>ips/pmtpc4/</code>, tag <code>pmtpc4-v1.0</code>)</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -715,17 +754,19 @@ flowchart LR
 <!-- ============================================================ -->
 <section id="future" class="th-spec">
   <div class="sec-head"><span class="sec-num">13</span><h2>Future Improvements</h2></div>
-  <p class="sec-sub">Real gaps surfaced by this run, prioritized by what blocks the next IP.</p>
+  <p class="sec-sub">Three of the original four P0 items are done — kept below, struck through, for the record — plus the real gaps this session's deeper audit surfaced, prioritized by what blocks the next IP.</p>
   <div class="tbl-wrap"><table>
     <thead><tr><th>Pri</th><th>Item</th><th>Problem today</th><th>Proposed solution</th></tr></thead>
     <tbody>
-      <tr><td><span class="pill p0">P0</span></td><td>Finish pmtpc4 closure on xsim</td><td>Sanity + error tests green; reg/channel/irq tests have findings under triage (systematic white-box-SVA bind + real RAL/logic items)</td><td>Apply the bind-to-registered-signal fix across the SVA layer, triage the RAL items, drive the seeded regression to the coverage goal</td></tr>
-      <tr><td><span class="pill p0">P0</span></td><td>Coverage-report roll-up to REQ level</td><td><code>run_regression.py</code> merges coverage via <code>xcrg</code>, but the per-vPlan / per-REQ roll-up into <code>coverage_summary.md</code> isn't automated yet</td><td>Add <code>coverage_report.py</code> to parse the xcrg output + <code>vplan.yaml</code> and emit the per-REQ closure table</td></tr>
-      <tr><td><span class="pill p0">P0</span></td><td>Generic templated engine unbuilt</td><td><code>flow/templates/</code> is empty — today's env structure + xsim gotchas live in PMTPC-4's own files and skill prose</td><td>Promote the proven patterns into <code>flow/templates/</code> so the next IP gets a runnable xsim UVM env automatically</td></tr>
-      <tr><td><span class="pill p1">P1</span></td><td>Mutation spot-check is manual</td><td>The reviewer hand-picks 2-3 lines per run — thorough but not systematic</td><td>A small script that seeds N random single-line RTL mutations, reruns the regression, and reports the catch rate</td></tr>
+      <tr><td><span class="pill p3">DONE</span></td><td style="text-decoration:line-through;">Finish pmtpc4 closure on xsim</td><td colspan="2">41/41 seeded regression green, 99.7% functional, DUT code toggle 93.5% (100% net of 1 documented constant), register-bit toggle 100% — see Section 11.</td></tr>
+      <tr><td><span class="pill p3">DONE</span></td><td style="text-decoration:line-through;">Coverage-report roll-up to REQ level</td><td colspan="2"><code>flow/scripts/coverage_report.py</code> generates <code>coverage_summary.md</code> (per-vPlan + per-REQ) straight from <code>vplan.yaml</code> + <code>regression.txt</code> + <code>xcrg</code> output — nothing hand-edited.</td></tr>
+      <tr><td><span class="pill p3">DONE</span></td><td style="text-decoration:line-through;">Generic templated engine unbuilt</td><td colspan="2"><code>flow/templates/full_test.sv.j2</code> and <code>tb_top.sv.j2</code> now exist and are used by the flow.</td></tr>
+      <tr><td><span class="pill p3">DONE</span></td><td style="text-decoration:line-through;">Toggle-coverage residual</td><td colspan="2">Root cause was the testbench, not the tool: a <code>$dumpvars</code> or a bound checker anywhere in the xsim design silently stops toggle recording on the nets they touch. Fixed generically: separate toggle snapshot (<code>xsim_flow.sh --toggle</code>), binds/dump moved to their own top modules, register block measured through the RAL (<code>reg_bit_toggle_cov</code>), bit-weighted <code>reports/_cov/toggle_summary.txt</code>.</td></tr>
+      <tr><td><span class="pill p1">P1</span></td><td>Deferred RTL-split follow-up (<code>cpuif_wr_data</code>, <code>int_status_val</code>/<code>int_en_val</code>, <code>ch_expiry[3]</code>)</td><td>Investigated this session; every attempt (hierarchical port reference, inline-and-delete-the-wire) made the score worse or broke the static gate — see Section 10, rows 14-15</td><td>Leave as documented residual unless a genuinely new technique is found and verified with a real before/after regression, never assumed from the one precedent (<code>cpuif_rd_data_pad</code>) that did work</td></tr>
+      <tr><td><span class="pill p1">P1</span></td><td>Mutation spot-check is manual</td><td>The reviewer hand-picks a few lines per run — thorough but not systematic</td><td>A small script that seeds N random single-line RTL mutations, reruns the regression, and reports the catch rate</td></tr>
       <tr><td><span class="pill p2">P2</span></td><td>UVM 2020 instead of built-in 1.2</td><td>xsim ships UVM 1.2; the bundled Accellera <code>env/_tools/uvm-core</code> sources aren't compiled in yet</td><td>Wire an opt-in <code>verification.uvm_version: "2020"</code> path that compiles the bundled sources into xsim</td></tr>
-      <tr><td><span class="pill p2">P2</span></td><td>Formal (SymbiYosys) never run</td><td>Needs <code>sby</code> + an SMT solver, neither installed — documented gap, not closed</td><td>Add to the bootstrap once a maintainer signs off on the extra install</td></tr>
-      <tr><td><span class="pill p3">P3</span></td><td>Cross-IP pattern library</td><td>Every peakrdl-regblock false-positive and xsim/UVM gotcha was learned fresh on this one IP</td><td>A pattern library applied automatically to the next IP in the family</td></tr>
+      <tr><td><span class="pill p2">P2</span></td><td>Formal (SymbiYosys) drafted but never run</td><td><code>ips/pmtpc4/formal/pmtpc4_channel.sby</code> + a bound formal-verification wrapper already exist; <code>sby</code> + an SMT solver are still not installed — documented gap, not closed</td><td>Add to the bootstrap once a maintainer signs off on the extra install</td></tr>
+      <tr><td><span class="pill p3">P3</span></td><td>Cross-IP pattern library</td><td>Every peakrdl-regblock false-positive, xsim/UVM gotcha, and coverage-tool blind spot (this session added several — Section 10) was learned fresh on this one IP</td><td>A pattern library applied automatically to the next IP in the family</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -737,3 +778,13 @@ flowchart LR
 </footer>
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: { fontFamily: 'IBM Plex Sans, sans-serif' },
+    flowchart: { htmlLabels: true, curve: 'basis' }
+  });
+</script>

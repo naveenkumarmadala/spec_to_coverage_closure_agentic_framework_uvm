@@ -12,5 +12,9 @@ Write and run tests for IP `$1`.
    scoreboard/RAL. Each test's header cites its `VP-` id.
 2. Run the tests on **xsim** using the **regression-runner** skill
    (`python3 flow/scripts/run_regression.py ips/$1`).
-3. Report per-test pass/fail and the initial functional + code coverage. List which vPlan items are
-   now covered vs still open. Then suggest `/vlsi-close-coverage $1`.
+   This includes the standard `$1_reg_toggle_test`: fill its hardware-set-field section so every
+   register field bit is seen rising and falling.
+3. Report per-test pass/fail and the initial functional + code coverage (code toggle from
+   `reports/_cov/toggle_summary.txt`, register-bit toggle from `reports/_cov/reg_bit_toggle.txt` —
+   never the xcrg dashboard toggle figure). List which vPlan items are now covered vs still open.
+   Then suggest `/vlsi-close-coverage $1`.

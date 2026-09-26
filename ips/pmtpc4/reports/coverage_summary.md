@@ -1,8 +1,9 @@
 # PMTPC4 — Coverage Summary (generated)
 
-- **Seeded regression:** pmtpc4 regression — 40/40 runs passed
+- **Seeded regression:** pmtpc4 regression — 41/41 runs passed
 - **Functional coverage (union):** 99.7%  (goal 100%)
-- **DUT code coverage:** stmt 99.9% / branch 98.1% / cond 100.0% / toggle 46.0%
+- **DUT code coverage:** stmt 99.9% / branch 98.1% / cond 100.0% / toggle 93.5% (458/490 bits; 100.0% net of documented constant nets)
+- **Register-bit toggle (RAL-derived):** 100.0% (486/486 bit-directions, every RAL field bit rise+fall as read back from the DUT)
 
 ## Per-vPlan item
 

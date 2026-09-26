@@ -50,6 +50,13 @@ delete, not a track to maintain.
    pass, in order: **lint (Verible) → elaboration (xsim `xelab`, optionally Verilator/Yosys) →
    simulation (xsim) → coverage (xsim `-cov` + `xcrg`)**. A failing gate blocks the next stage;
    report the failure with the actual tool output, never paper over it.
+   **Coverage is measured from two xsim snapshots of the same test and seed** (verified identical by
+   `run_regression.py`): the normal one (tb top + `tb/<ip>_binds.sv` + `tb/<ip>_dump.sv`) for
+   assertions, functional and statement/branch/condition; and the code-toggle one (tb top alone),
+   because on xsim a bound checker or a `$dumpvars` in the design silently corrupts toggle recording.
+   The generated register block's toggle, which xsim cannot measure, is measured by the reusable
+   `reg_bit_toggle_cov` + `<ip>_reg_toggle_test`. Quote toggle from `reports/_cov/toggle_summary.txt`
+   and `reg_bit_toggle.txt`, never from the xcrg dashboard (it counts the UVM library file at 0%).
 5. **Everything runs on the free toolchain in WSL2.** The UVM simulator is **Vivado xsim** (free
    ML Standard Edition, installed for Linux inside WSL2). If a construct isn't supported by xsim,
    fix the construct or record a justified, visible gap — never silently drop a check and never

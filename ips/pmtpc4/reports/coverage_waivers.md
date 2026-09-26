@@ -1,23 +1,71 @@
 # PMTPC-4 coverage waiver list (with justification)
 
 Signed-off record of every coverage item that is **not** hit and **why it is acceptable**. All
-numbers are from the union `pmtpc4_full_test` database, code coverage DUT-scoped via
-`dv/pmtpc4_cov_exclusions.txt`. Regenerate the machine list with
-`python3 flow/scripts/gen_exclusions.py ips/pmtpc4` (per-signal waivers + justifications live in
-`dv/pmtpc4_toggle_waivers.txt`).
+numbers are from the union `pmtpc4_full_test` run (seed 1). Statement/branch/condition come from
+the normal build, DUT-scoped via `dv/pmtpc4_cov_exclusions.txt`. Code toggle comes from the
+toggle-measurement build via `dv/pmtpc4_toggle_exclusions.txt`. Regenerate both with
+`python3 flow/scripts/gen_exclusions.py ips/pmtpc4`; the toggle waivers and their justifications
+live in `dv/pmtpc4_toggle_waivers.txt`.
 
-## Final coverage (37/37 seeded runs pass; UVM_ERROR=0, SVA=0, scoreboard errors=0 — regenerated
-2026-09-19 via `flow/scripts/coverage_report.py`, not hand-edited)
+## Final coverage — 2026-09-26 (41/41 seeded runs pass; UVM_ERROR=0, SVA=0, scoreboard errors=0; toggle build verified identical to the normal run)
 
 | Metric | Score | Closure statement |
 |---|---|---|
-| Functional (type / instance) | 99.72% / 99.80% | **Closed** — the entire residual is the one signed-off `cg_apb.cp_wait.many` waiver below; every other bin in every covergroup is hit |
-| Code — statement (DUT) | 99.86% | 100% net of 1 unreachable FSM default; tiny drop from 99.9% is `pmtpc4_prescaler`'s 13 statements leaving the denominator (below) |
-| Code — branch (DUT) | 98.0% | 100% net of unreachable branches; same tiny prescaler-exclusion effect (was mis-measured at 97.5% before the exclusion-file fix — see below) |
-| Code — condition (DUT) | 100% | **closed** (was mis-measured at 97.7% — see below) |
-| Code — toggle (DUT) | **46.5%** | structural ceiling, further raised by excluding `pmtpc4_prescaler` (a whole-module tool blind spot, not a waiver — see "2026-09-19 prescaler module-exclusion" below); residual now dominated by `pmtpc4_regblock`'s generated-code artifacts and top-level pass-through aliases, both fully classified below |
+| Functional (type / instance) | 99.72% / 99.90% | **Closed.** The only residual is the signed-off `cg_apb.cp_wait.many` waiver below. |
+| Code — statement (DUT) | 99.87% | 100% net of 1 unreachable FSM default (prescaler back in scope) |
+| Code — branch (DUT) | 98.09% | 100% net of the documented unreachable branches |
+| Code — condition (DUT) | 100% | **closed** |
+| Code — toggle (DUT, hand-written RTL) | **93.47%** (458/490 bits) | **100% net of 1 documented constant net.** `pmtpc4_apb_slave`, `pmtpc4_channel` and `pmtpc4_prescaler` are all at 100%. The top level's only uncovered item is `cpuif_rd_data_pad`, which is always zero by construction; xsim lists it twice and no exclusion form removes the second copy. |
+| Register-block toggle (`pmtpc4_regblock`) | **100%** (486/486) | Every bit of all 45 RAL fields was seen rising and falling in the DUT's own bus read-back (`reg_bit_toggle_cov`). This is the "option C" substitute for code toggle, which xsim cannot measure on a PeakRDL block. |
 
-## Executive summary: why DUT toggle coverage cannot reach 100% (read this first)
+Sources: `reports/_cov/{functional,code}_report/`, `reports/_cov/toggle_summary.txt` (bit-weighted,
+per file, with every uncovered row), `reports/_cov/reg_bit_toggle.txt`.
+
+## 2026-09-26 toggle measurement correction (read this first — supersedes the toggle analysis below)
+
+The earlier toggle analysis below concluded that the DUT's toggle was "permanently capped" by xsim
+blind spots, and it waived about a dozen signals as tool artifacts. **That diagnosis was wrong.** A
+controlled bisection isolated the real DUT from the testbench one ingredient at a time. It showed
+that the testbench itself was corrupting xsim's toggle recording:
+
+- **`$dumpvars` present anywhere in the design** stops toggle recording on some DUT nets. This held
+  even inside an `if ($test$plusargs("DUMP"))` that never executes. It produced the prescaler's
+  "No Toggles in Module" and the 0% on `start_trig` and `pwm_level`.
+- **`bind`-ed white-box checkers** erase the toggles of every DUT net they observe. This is what
+  zeroed `int_status_val`, `int_en_val`, `cpuif_addr`, the top-level `cpuif_wr_data` and
+  `compare_shadow`.
+
+**Fix (testbench only, no RTL change):**
+- The binds and the dump each became their own top module: `tb/pmtpc4_binds.sv` and
+  `tb/pmtpc4_dump.sv`.
+- Code toggle is measured on a second snapshot, `pmtpc4_tcov`, built from `pmtpc4_tb_top` alone.
+  It runs the same test and seed.
+- `run_regression.py` verifies the two runs executed identically: same scoreboard check count
+  (9041 = 9041) and same register-bit toggle totals (486 = 486).
+- Every "tool artifact" waiver and the prescaler module exclusion were **removed**. All of those
+  signals now measure, and toggle in both directions.
+
+**What is genuinely beyond xsim**, all in the PeakRDL-generated register block:
+- `automatic` next-value temporaries (153 entries) are listed as toggle points but never updated,
+  and no exclusion form removes them.
+- The nested-struct field flops (`field_storage` / `hwif_out`) are not instrumented for toggle at all.
+- There is no bit-range exclusion.
+
+Vivado 2026.1 documents no change to any of these. The register block is therefore excluded from the
+*toggle* report only (it stays in statement/branch/condition), and it is measured instead by
+`reg_bit_toggle_cov` plus `pmtpc4_reg_toggle_test`:
+- the writable bits are bit-bashed;
+- the `singlepulse` fields (`SOFT_RESET`, `CH_START`) are credited on the accepted write of 1 and
+  the following read of 0;
+- every hardware-set read-only bit is driven both ways while being read back: `COUNT` over two full
+  0xFFFF periods, `BUSY`, `READY`, `GLOBAL_ISR` and `INT_STATUS`.
+
+**Reporting fix:** the xcrg dashboard's toggle figure is an unweighted average over report *files*.
+It always includes the UVM library's file (`xlnx_uvm_package.sv`) at 0%, which no `file -` or
+`dir -` directive removes, so it is not a DUT metric. It read 65.31% for this very run. Toggle is
+therefore reported bit-weighted from xcrg's own per-file tables (`toggle_summary.txt`).
+
+## (Superseded 2026-09-26) Executive summary: why DUT toggle coverage cannot reach 100%
 
 Functional coverage, statement coverage, branch coverage, and condition coverage are all closed
 (100%, or accepted with a single named, signed-off waiver). **Toggle coverage (46.0%) is the one

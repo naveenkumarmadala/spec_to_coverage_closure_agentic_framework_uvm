@@ -38,7 +38,12 @@ deliverable of this stage.
    **cross** coverage (e.g. direction × pin, mode × transfer-type).
 4. Add corner/error items (illegal address, PSLVERR, back-to-back, wait states, overflow/rollover).
 5. Define code-coverage targets (statement/branch/condition/toggle/FSM on the RTL modules; xsim
-   `xelab -cov` provides these).
+   `xelab -cov` provides these). Code toggle is measured on the toggle build and covers the
+   hand-written RTL. **The generated register block's toggle is a separate, standard item for every
+   IP** — xsim cannot measure it (nested-struct flops, unexcludable `automatic` temporaries) — e.g.
+   `VP-REG-TOGGLE: every bit of every RAL field seen rising and falling in the DUT's bus read-back`,
+   `method: directed`, `coverage: { kind: reg_bit_toggle }`, `tests: [<ip>_reg_toggle_test]`,
+   traced to the register/access requirements and the code-coverage requirement.
 
 ## Rules
 - **Coverage-goal completeness:** the union of vPlan items must, if all closed, satisfy every

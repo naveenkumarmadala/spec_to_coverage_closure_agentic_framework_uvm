@@ -58,16 +58,16 @@ generates RTL, the UVM RAL model, C headers, and docs — so they can never drif
   `field_combo` struct pattern) are expected, generic false-positives, not a sign the RDL/generation
   is wrong — `lint-static-checker` waives these once for any IP via a shared, filename-matched
   Verilator config. Don't try to restructure the RDL to avoid them.
-- Every PeakRDL passthrough-cpuif regblock also emits, per field, an `always_comb` with
-  `automatic logic next_c` / `automatic logic load_next_c` computing the field's next value —
-  procedural temporaries, not persistent nets. xsim's toggle-coverage instrumentation cannot track
-  `automatic` block-locals, so `next_c`/`load_next_c` will report 0% toggle on every IP regardless of
-  stimulus (the real field value, `field_storage.<REG>.<FIELD>.value`, is unaffected and toggles
-  normally). This is generic and 100% predictable from the `--cpuif` template, not IP-specific:
-  pre-seed `signal -next_c` and `signal -load_next_c` in the new IP's
-  `ips/<ip>/dv/<ip>_toggle_waivers.txt` sidecar (create it if it doesn't exist yet — see the
-  `coverage-triage` skill for the full sidecar mechanism and other generic PeakRDL-artifact patterns)
-  rather than leaving `coverage-closure` to rediscover this same false gap on every IP.
+- **xsim cannot measure a PeakRDL regblock's code toggle** (every IP, predictable from the template):
+  the field flops live in nested structs (`field_storage`, `hwif_out`) that xsim does not instrument
+  for toggle, and the per-field `automatic logic next_c`/`load_next_c` temporaries it does list are
+  never updated and can't be excluded by any name form. Don't try to waive them one by one. For every
+  new IP: (1) put `module -<ip>_regblock` in `ips/<ip>/dv/<ip>_toggle_waivers.txt` (toggle report
+  only — `gen_exclusions.py` keeps it out of the stmt/branch/cond report); (2) run
+  `env/.venv/bin/python3 flow/scripts/gen_reg_toggle_cfg.py ips/<ip>` so the reusable
+  `reg_bit_toggle_cov` knows the RDL's `singlepulse` fields — re-run it whenever the RDL changes.
+  The register block's toggle is then measured by `reg_bit_toggle_cov` (every RAL field bit, rise and
+  fall, as read back from the DUT) and closed by a `<ip>_reg_toggle_test`. See `coverage-triage`.
 - When a register field's hardware value has more than one write source landing on the same cycle
   (a hardware `hwset` and a software W1C, or a `hwset` and a global clear like a soft-reset), the
   precedence between them is a design decision the spec must state and the RDL must encode

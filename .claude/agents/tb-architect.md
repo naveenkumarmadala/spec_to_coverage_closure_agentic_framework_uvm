@@ -22,7 +22,22 @@ for the exact architecture.
 - `seq/` — `<ip>_base_vseq` + smoke/reg/<feature> virtual sequences.
 - `test/` — `<ip>_base_test` + one file per test.
 - `sva/` — bound SVA modules (protocol timing, datapath/waveform rules, reset) with white-box cover.
-- `tb/<ip>_tb_top.sv` — clock/reset, DUT, interface(s), `bind` the SVA, set vif in `config_db`, `run_test`.
+- `tb/<ip>_tb_top.sv` — clock/reset, DUT, interface(s), set vif in `config_db`, `run_test`
+  (`flow/templates/tb_top.sv.j2`). **No `bind` and no `$dumpvars` in it.**
+- `tb/<ip>_binds.sv` (module `<ip>_binds`, every SVA/coverage bind — `binds.sv.j2`) and
+  `tb/<ip>_dump.sv` (module `<ip>_dump`, `+DUMP` waveform — `dump.sv.j2`), both listed in `filelist.f`
+  after the tb top. On xsim a bound checker erases the toggles of the DUT nets it observes and a
+  `$dumpvars` merely present in the design stops toggle recording on others, so `xsim_flow.sh`
+  measures code toggle on a snapshot of the tb top alone; `run_regression.py` refuses a toggle build
+  whose tb top still has a bind or a dump.
+- **Register-bit toggle coverage** (standard, every IP): `include` `reg_bit_toggle_cov.svh` (from
+  `vip/common/sv`) and the generated `<ip>_reg_toggle_cfg.svh` in the test package; in the env create
+  `reg_bit_toggle_cov` when coverage is on, fill `pulse_suffixes` with `<ip>_reg_pulse_fields(...)`,
+  call `attach(ral)` in `connect_phase` after the explicit predictor is wired, and `handle_reset()`
+  from the env's reset hook. Render `seq/<ip>_reg_toggle_vseq.sv` / `test/<ip>_reg_toggle_test.sv`
+  from their templates and run the vseq last in `<ip>_full_test`. The generated register block is then
+  measured by this collector (xsim cannot measure its code toggle); `gen_exclusions.py` scopes it out
+  of the toggle report automatically.
 - `<ip>_test_pkg.sv` (one class per `include`), `filelist.f` (xsim compile order), and the xsim
   compile/elaborate/run invocation wired through the `flow/scripts` runners.
 
@@ -63,7 +78,8 @@ for the exact architecture.
 - Use **native SystemVerilog randomization** for stimulus (`rand`/`constraint`/`dist`) — xsim has a
   real constraint solver. Never re-implement constraints in software.
 - Bring up a **smoke test** (reset + one register access) and confirm it **compiles, elaborates, and
-  runs on xsim** before handing off.
+  runs on xsim** before handing off — in BOTH snapshots: `xsim_flow.sh elab ips/<ip> --cov` and
+  `xsim_flow.sh elab ips/<ip> --cov --toggle` must both elaborate.
 
 ## Rules
 - Keep VIP generic and reusable in `vip/<bus>/sv/`; keep only IP-specific glue (ref model, coverage,

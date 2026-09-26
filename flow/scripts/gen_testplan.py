@@ -99,20 +99,47 @@ def xcrg_functional_score(reports: Path):
     return f"{float(m.group(1)):.1f}%" if m else None
 
 
-def xcrg_code_scores(reports: Path):
-    html = reports / "_cov" / "code_report" / "codeCoverageReport" / "dashboard.html"
+def _xcrg_code_dash(html: Path):
+    """(stmt, branch, cond, toggle) from an xcrg code-coverage dashboard, or None."""
     if not html.exists():
-        return {}
+        return None
     t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html.read_text(errors="replace")))
     # dashboard lists the 4 score LABELS, then counts (files/modules/instances) + the
     # 4 SCORES as a run of 7 numbers: files modules instances stmt branch cond toggle
     m = re.search(r"Statement Coverage Score Branch Coverage Score Condition Coverage Score "
                   r"Toggle Coverage Score\s+" + r"([0-9.]+)\s+" * 6 + r"([0-9.]+)", t)
-    if not m:
+    return (m.group(4), m.group(5), m.group(6), m.group(7)) if m else None
+
+
+def xcrg_code_scores(reports: Path):
+    """stmt/branch/cond from code_report/ (normal build); toggle from toggle_report/ (the
+    toggle-measurement build without the bind top) when present -- on xsim, bound checkers
+    and $dumpvars corrupt toggle in the normal build."""
+    code = _xcrg_code_dash(reports / "_cov" / "code_report" / "codeCoverageReport" / "dashboard.html")
+    if not code:
         return {}
-    stmt, branch, cond, tog = m.group(4), m.group(5), m.group(6), m.group(7)
-    return {"statement": f"{float(stmt):.1f}%", "branch": f"{float(branch):.1f}%",
-            "condition": f"{float(cond):.1f}%", "toggle": f"{float(tog):.1f}%"}
+    out = {"statement": f"{float(code[0]):.1f}%", "branch": f"{float(code[1]):.1f}%",
+           "condition": f"{float(code[2]):.1f}%"}
+    # toggle: bit-weighted DUT summary from the toggle build (the xcrg dashboard's toggle
+    # figure is a per-file average that always includes the UVM library file at 0%)
+    ts = reports / "_cov" / "toggle_summary.txt"
+    m = re.search(r"bits_covered=(\d+) bits_total=(\d+) pct=([\d.]+) net_of_documented=([\d.]+)",
+                  ts.read_text()) if ts.exists() else None
+    if m:
+        out["toggle"] = (f"{float(m.group(3)):.1f}% ({m.group(1)}/{m.group(2)} bits); "
+                         f"{float(m.group(4)):.1f}% net of documented constant nets")
+    else:
+        out["toggle"] = f"{float(code[3]):.1f}% (xcrg dashboard, normal build — not reliable)"
+    return out
+
+
+def reg_bit_toggle(reports: Path):
+    """Register-bit toggle (RAL-derived, DUT-observed) from _cov/reg_bit_toggle.txt."""
+    f = reports / "_cov" / "reg_bit_toggle.txt"
+    if not f.exists():
+        return None
+    m = re.search(r"covered=(\d+) total=(\d+) pct=([\d.]+)", f.read_text(errors="replace"))
+    return f"{float(m.group(3)):.1f}% ({m.group(1)}/{m.group(2)} bit-directions)" if m else None
 
 
 def code_waivers(ip_dir: Path):
@@ -211,20 +238,31 @@ def main():
     rows.append(["Functional coverage (union)", fscore or "not run", "reports/_cov/functional_report/"])
     code = xcrg_code_scores(reports)
     if code:
-        for k in ("statement", "branch", "condition", "toggle"):
-            if k in code:
-                rows.append([f"DUT code — {k}", code[k], "reports/_cov/code_report/ (DUT-scoped)"])
+        for k in ("statement", "branch", "condition"):
+            rows.append([f"DUT code — {k}", code[k], "reports/_cov/code_report/ (DUT-scoped)"])
+        rows.append(["DUT code — toggle", code["toggle"],
+                     "reports/_cov/toggle_summary.txt (toggle build: no bind/dump top; bit-weighted over DUT RTL)"])
     else:
         rows.append(["DUT code coverage", "not run", "reports/_cov/code_report/"])
+    rbt = reg_bit_toggle(reports)
+    if rbt:
+        rows.append(["Register-bit toggle (RAL-derived)", rbt, "reports/_cov/reg_bit_toggle.txt"])
     rows.append([])
-    rows.append(["Code-coverage waivers (module scoping)", "Type", "Source"])
+    rows.append(["Code-coverage exclusions", "Type", "Source"])
     for m in code_waivers(ip_dir):
-        rows.append([m, "code scoping", f"dv/{ip}_cov_exclusions.txt"])
+        rows.append([m, "DUT scoping (all code metrics)", f"dv/{ip}_cov_exclusions.txt"])
+    tex = ip_dir / "dv" / f"{ip}_toggle_exclusions.txt"
+    scoped = set(code_waivers(ip_dir))
+    if tex.exists():
+        for line in tex.read_text(errors="replace").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and line not in scoped:
+                rows.append([line, "toggle-only waiver", f"dv/{ip}_toggle_waivers.txt"])
     if not code_waivers(ip_dir):
         rows.append(["(no exclusion file present)", "", ""])
     for r in rows:
         ws3.append(r)
-        if r and r[0] in ("Metric", "Code-coverage waivers (module scoping)"):
+        if r and r[0] in ("Metric", "Code-coverage exclusions"):
             for c in ws3[ws3.max_row]:
                 c.fill, c.font = SEC_FILL, Font(bold=True)
     set_cols(ws3, [42, 34, 46])

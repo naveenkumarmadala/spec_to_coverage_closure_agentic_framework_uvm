@@ -63,10 +63,21 @@ peakrdl regblock  <ip>.rdl -o generated/rtl --cpuif apb4-flat   # or axi4-lite, 
 peakrdl uvm       <ip>.rdl -o generated/<ip>_ral_pkg.sv
 peakrdl html      <ip>.rdl -o generated/html
 peakrdl c-header  <ip>.rdl -o generated/<ip>.h
+cd -
+# register-bit toggle config for the reusable reg_bit_toggle_cov (the RDL's singlepulse fields)
+env/.venv/bin/python3 flow/scripts/gen_reg_toggle_cfg.py ips/<ip>   # -> dv/sv/env/<ip>_reg_toggle_cfg.svh
 ```
 
 - Pick `--cpuif` to match `bus.protocol` in `ip_config.yaml`.
 - The regblock exposes a `hwif_in`/`hwif_out` struct — the RTL connects hardware logic to these.
+- **Re-run `gen_reg_toggle_cfg.py` after every RDL change** (`run_regression.py` also does it
+  automatically when the `.svh` is missing or older than the RDL). Mark self-clearing command bits
+  `singlepulse` in the RDL rather than hand-coding them anywhere: that property is what tells the
+  register-bit toggle coverage that a bus read can never show them as 1.
+- The generated regblock's **code toggle is not measurable on xsim** (its field flops are nested
+  structs; its `automatic` next-value temporaries are listed but never updated). `gen_exclusions.py`
+  scopes everything under `generated/rtl/` out of the toggle report automatically; the register
+  storage is measured by `reg_bit_toggle_cov` instead.
 
 ## Rules & gotchas
 

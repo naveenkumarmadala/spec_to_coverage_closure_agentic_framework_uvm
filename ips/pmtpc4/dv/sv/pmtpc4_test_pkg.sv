@@ -20,6 +20,9 @@ package pmtpc4_test_pkg;
     // pmtpc4_env.sv) can reference it without re-deriving the alias.
     typedef pmtpc4_ral_pkg::pmtpc4 pmtpc4_reg_block_t;
 
+    // reusable register-bit toggle coverage (vip/common) + its RDL-derived config
+    `include "reg_bit_toggle_cov.svh"
+    `include "pmtpc4_reg_toggle_cfg.svh"
     // env
     `include "pmtpc4_env_cfg.sv"
     `include "pmtpc4_scoreboard.sv"
@@ -54,6 +57,7 @@ package pmtpc4_test_pkg;
     `include "pmtpc4_pwm_all_channels_vseq.sv"
     `include "pmtpc4_freeze_start_vseq.sv"
     `include "pmtpc4_selfclear_race_vseq.sv"
+    `include "pmtpc4_reg_toggle_vseq.sv"
     // tests
     `include "pmtpc4_base_test.sv"
     `include "pmtpc4_sanity_test.sv"
@@ -87,5 +91,6 @@ package pmtpc4_test_pkg;
     `include "pmtpc4_pwm_all_channels_test.sv"
     `include "pmtpc4_freeze_start_test.sv"
     `include "pmtpc4_selfclear_race_test.sv"
+    `include "pmtpc4_reg_toggle_test.sv"
     `include "pmtpc4_full_test.sv"
 endpackage

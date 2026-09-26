@@ -17,3 +17,7 @@ module -pwm_if*
 module -pwm_pkg*
 module -reset_if*
 module -uvm_pkg
+module -pmtpc4_regblock_pkg*
+module -pmtpc4_regblock
+signal -pmtpc4_tb_top.dut.cpuif_wr_biten
+signal -pmtpc4_tb_top.dut.cpuif_rd_data_pad

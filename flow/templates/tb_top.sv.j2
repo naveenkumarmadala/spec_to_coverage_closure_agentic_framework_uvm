@@ -1,12 +1,20 @@
 // TEMPLATE (mechanical layer) — {{ ip }}_tb_top. Rendered from ip_config + RAL.
-// Owns: clock/reset, DUT instance, config_db vif, run_test, and the SVA BIND PATTERN.
-// The agent fills only the DUT port map and the per-block SVA bind connections.
+// Owns: clock/reset, DUT instance, config_db vif, run_test. White-box SVA binds do NOT
+// live here -- they go in tb/{{ ip }}_binds.sv (module {{ ip }}_binds), a separate top.
+// The agent fills only the DUT port map (here) and the per-block bind connections (there).
 //
 // BAKED-IN xsim GOTCHAS (do not "simplify" away):
 //  * White-box SVA binds connect to the *registered* signal, never a combinational
 //    output alias (xsim samples a continuous-assign net as X in the preponed region).
 //    e.g. bind the FSM checker's state input to the internal `state` reg, not `state_o`.
-//  * $dumpvars is fine on xsim (writes VCD); timescale is set at xelab, not here.
+//  * Binds are a SEPARATE TOP ({{ ip }}_binds), never inside this module: on xsim a DUT net
+//    that a bound checker observes loses its code-toggle coverage. xsim_flow.sh elaborates
+//    the normal snapshot with both tops and the code-toggle snapshot (--toggle) with this
+//    top only; run_regression.py verifies the two runs executed identically.
+//  * NO $dumpvars in this module, not even behind a plusarg: on xsim its mere presence in
+//    the elaborated design stops code-toggle recording on some DUT nets (even if it never
+//    executes). The +DUMP waveform dump is its own top, tb/{{ ip }}_dump.sv, which the
+//    code-toggle snapshot leaves out. Timescale is set at xelab, not here.
 module {{ ip }}_tb_top;
     import uvm_pkg::*;
     import {{ ip }}_test_pkg::*;
@@ -21,9 +29,6 @@ module {{ ip }}_tb_top;
     // {{ '{{' }} AGENT: instantiate the DUT, mapping bus + side-signals here {{ '}}' }}
     {{ ip }} dut ( /* agent fills the port map from ip_config interfaces */ );
 
-    // {{ '{{' }} AGENT: bind each white-box SVA checker here.
-    //   REQUIRED: connect checker inputs to the *registered* RTL signals (see gotcha above). {{ '}}' }}
-
     initial begin
         {{ reset }} = 0;
         repeat ({{ reset_cycles | default(5) }}) @(posedge {{ clock }});
@@ -35,8 +40,6 @@ module {{ ip }}_tb_top;
         run_test();
     end
 
-    initial begin
-        $dumpfile("{{ ip }}.vcd");
-        $dumpvars(0, {{ ip }}_tb_top);
-    end
 endmodule
+// Companion tops (render both, list them in filelist.f after this file):
+//   binds.sv.j2 -> tb/{{ ip }}_binds.sv   dump.sv.j2 -> tb/{{ ip }}_dump.sv

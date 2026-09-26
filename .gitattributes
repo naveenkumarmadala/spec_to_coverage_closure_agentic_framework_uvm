@@ -11,6 +11,10 @@
 *.yaml  text eol=lf
 *.yml   text eol=lf
 *.json  text eol=lf
+# xcrg coverage exclusion/waiver lists: a single CR makes xcrg ignore EVERY directive
+# (silently un-scoping the coverage report), so these must never be checked out as CRLF.
+*_exclusions.txt      text eol=lf
+*_toggle_waivers.txt  text eol=lf
 Makefile        text eol=lf
 Dockerfile      text eol=lf
 *.mk    text eol=lf

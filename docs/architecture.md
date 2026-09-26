@@ -6,9 +6,17 @@ A multi-agent framework that carries **any IP or subsystem** through the **front
 lifecycle using **free/free-to-use tools**, from a single input — a requirement spec document:
 
 ```
-Requirement Spec ─▶ (extract + confirm) ─▶ Design Spec ─▶ Register Spec ─▶ RTL
-       ─▶ Register Verification (RAL) ─▶ Functional Verification ─▶ 100% Coverage Closure
+Requirement Spec ─▶ (extract + confirm) ─▶ Design Spec ─┬─▶ Design Thread:   Register Spec ─▶ RTL ─▶ static gate ─▶ design review
+                                                          └─▶ Verification Thread: vPlan ─▶ UVM env authoring
+                                                                     (both run independently, converge at the simulation gate)
+                                     ─▶ Register Verification (RAL) ─▶ Functional Verification ─▶ 100% Coverage Closure
 ```
+
+The design thread and verification thread run independently once the design spec exists — vPlan
+authoring only needs the register map, and env authoring doesn't need working RTL, only its
+interface. They share nothing else until the simulation gate, where verification's stimulus first
+runs against design's RTL. See §4 below for the agents on each thread and their independent
+reviewers.
 
 Out of scope: physical design, synthesis-for-production, timing signoff, and all commercial EDA
 (Cadence/Synopsys/Siemens). Synthesizability is checked (Yosys) only as a *front-end* quality gate.
@@ -47,29 +55,64 @@ Out of scope: physical design, synthesis-for-production, timing signoff, and all
 
 Pinned in [`env/tool-versions.yaml`](../env/tool-versions.yaml).
 
+### Coverage measurement (every IP)
+
+| Metric | Measured on | Report |
+|---|---|---|
+| Functional, assertions, statement/branch/condition | normal snapshot `<ip>_sim` = `<ip>_tb_top` + `<ip>_binds` + `<ip>_dump` | `reports/_cov/functional_report/`, `code_report/` |
+| Code toggle (hand-written RTL) | toggle snapshot `<ip>_tcov` = `<ip>_tb_top` alone (`xsim_flow.sh --toggle`) | `reports/_cov/toggle_summary.txt` (bit-weighted) |
+| Generated register block toggle | `reg_bit_toggle_cov` (every RAL field bit rise+fall, as read back from the DUT) + `<ip>_reg_toggle_test` | `reports/_cov/reg_bit_toggle.txt` |
+
+Why: on Vivado xsim a `bind`-ed checker erases the toggles of the DUT nets it observes and a
+`$dumpvars` merely present in the design stops toggle recording on others, so binds and the dump live
+in their own tops and toggle is measured without them. `run_regression.py` reruns the union test on the
+toggle snapshot and requires identical execution (same scoreboard checks and register-bit totals); it
+also regenerates the exclusion lists (`gen_exclusions.py`, which scopes the generated register block
+out of the toggle report automatically) and the RDL-derived `singlepulse` list
+(`gen_reg_toggle_cfg.py`), and refuses a toggle build whose tb top still contains a bind or a dump.
+
 ## 4. The multi-agent framework
 
 ### Agents (`.claude/agents/`)
-`vlsi-orchestrator` sequences the specialists and enforces gates:
+`vlsi-orchestrator` sequences the specialists and enforces gates. Stage 0 (front door) and stages
+1-2 (requirements/design spec) are shared; after that, the pipeline splits into two threads that run
+independently and converge only at the simulation gate (see §1's diagram):
+
+**Shared front door**
 
 | Agent | Stage | Key output |
 |---|---|---|
 | `spec-ingestor` | **Ingest + confirm (front door)** | `ip_config.yaml` (+`provenance`), `spec/requirements.draft.md` |
 | `requirements-analyst` | Requirements | `spec/requirements.md` (ID'd, testable) |
 | `design-architect` | Design spec | `spec/design_spec.md` |
+
+**Design thread** — RTL side; its reviewer never reads `dv/`
+
+| Agent | Stage | Key output |
+|---|---|---|
 | `register-designer` | Registers | `rdl/*.rdl` → PeakRDL RTL/RAL/docs |
 | `rtl-designer` | RTL | `rtl/*.sv` |
 | `lint-static-checker` | Static gate | pass/fail + findings |
 | `design-reviewer` | Independent design review | Spec-conformance findings + traceability tally |
+
+**Verification thread** — DV side; its reviewer independently re-derives expected checker behavior
+from spec before ever comparing it to the DV collateral or to `design-reviewer`'s findings
+
+| Agent | Stage | Key output |
+|---|---|---|
 | `verification-planner` | vPlan | `vplan/vplan.yaml` |
 | `tb-architect` | Env | SystemVerilog UVM env `dv/sv/` |
 | `test-writer` | Register + functional tests | RAL seqs + directed/constrained-random sequences/tests |
-| `coverage-closure` | Closure | `reports/coverage_summary.md` |
+| `coverage-closure` | Closure (needs the simulation gate: accepted RTL + built env) | `reports/coverage_summary.md` |
 | `verification-reviewer` | Independent verification review | Vacuity/waiver findings + trustworthiness verdict |
 
 `design-reviewer` and `verification-reviewer` are independent audits, not authors: they report
-findings for a human (or the authoring agent) to act on, never silently fix what they review — the
-same discipline real signoff processes apply by requiring a *separate* reviewer.
+findings for a human (or the authoring agent) to act on, never silently fix what they review, and
+never read the other thread's collateral or the other reviewer's conclusions before finishing their
+own — the same discipline real signoff processes apply by requiring a *separate*, unbriefed reviewer.
+`coverage-closure` is the one verification-thread stage allowed to edit RTL (a design-thread
+artifact) when triage finds a bug — when it does, `design-reviewer` re-runs scoped to that diff
+before the fix is trusted.
 
 ### Skills (`.claude/skills/`)
 Durable, IP-agnostic methodology invoked by the agents: `spec-extraction`, `vip-registry`,

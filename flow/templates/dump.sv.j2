@@ -1,0 +1,16 @@
+// TEMPLATE (mechanical layer) — tb/{{ ip }}_dump.sv. The waveform dump for {{ ip }}, in its OWN
+// top-level module (listed in filelist.f after tb/{{ ip }}_tb_top.sv), active only with +DUMP:
+//     bash flow/scripts/xsim_flow.sh run ips/{{ ip }} <test> <seed> --plusargs +DUMP
+//
+// Why a separate top and not an `if ($test$plusargs("DUMP"))` inside {{ ip }}_tb_top: on Vivado
+// xsim the mere PRESENCE of $dumpvars in the elaborated design stops code-toggle recording on
+// some DUT nets, even when it never executes. xsim_flow.sh leaves this top out of the
+// code-toggle snapshot, and run_regression.py refuses a toggle build whose tb top has a dump.
+module {{ ip }}_dump;
+    initial begin
+        if ($test$plusargs("DUMP")) begin
+            $dumpfile("{{ ip }}.vcd");
+            $dumpvars(0, {{ ip }}_tb_top);
+        end
+    end
+endmodule

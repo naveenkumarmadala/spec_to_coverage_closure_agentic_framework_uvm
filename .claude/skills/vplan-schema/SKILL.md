@@ -53,7 +53,21 @@ items:
     coverage: { kind: code, targets: [statement, branch, toggle], scope: timer }
     tests: [timer_random_test]
     status: planned
+
+  - id: VP-REG-TOGGLE          # standard for EVERY IP with a generated register block
+    feature: "Every bit of every RAL field seen rising and falling in the DUT's bus read-back"
+    traces_to: [REQ-012, REQ-025]
+    method: directed
+    coverage: { kind: reg_bit_toggle }     # measured by vip/common/sv/reg_bit_toggle_cov.svh
+    tests: [<ip>_reg_toggle_test]
+    status: planned
 ```
+
+Coverage `kind`s: `covergroup` (bins/crosses), `ral` (built-in register sequences), `assertion`,
+`code` (statement/branch/condition/toggle — toggle is read from the toggle build's
+`reports/_cov/toggle_summary.txt`, over the hand-written RTL), and **`reg_bit_toggle`** (the
+generated register block's per-field-bit rise/fall, from `reports/_cov/reg_bit_toggle.txt`; xsim
+cannot measure that block's code toggle, so this item stands in for it).
 
 ## Rules
 

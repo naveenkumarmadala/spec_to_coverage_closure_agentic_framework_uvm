@@ -43,14 +43,20 @@ ips/<ip>/dv/sv/
    seq/   <ip>_base_vseq.sv + smoke/reg/<feature> virtual sequences
    test/  <ip>_base_test.sv + one file per test
    sva/   <ip>_<blk>_sva.sv  (bound assertion + white-box coverage modules)
-   tb/    <ip>_tb_top.sv  (DUT + IF + bind sva + run_test)
+   tb/    <ip>_tb_top.sv  (DUT + IF + run_test — NO binds, NO $dumpvars)
+          <ip>_binds.sv   (module <ip>_binds: every white-box SVA/coverage bind — a separate top)
+          <ip>_dump.sv    (module <ip>_dump: +DUMP waveform dump — a separate top)
    <ip>_test_pkg.sv   filelist.f
 ips/<ip>/formal/         (optional) SymbiYosys harness(es) + .sby for control-logic proofs
 ```
 
 ## Component responsibilities (the "exact architecture")
 
-- **tb_top** — clock/reset, DUT, interface(s), `bind` the SVA modules, set vif in config_db, `run_test`.
+- **tb_top** — clock/reset, DUT, interface(s), set vif in config_db, `run_test`. **The SVA binds and
+  the waveform dump are NOT in tb_top** — each is its own top module (`tb/<ip>_binds.sv`,
+  `tb/<ip>_dump.sv`) so the code-toggle snapshot can elaborate `tb_top` alone: on xsim a bound checker
+  erases the toggles of the DUT nets it observes, and `$dumpvars` merely present in the design (even
+  gated, never executed) stops toggle recording on others. `xsim_flow.sh` handles both snapshots.
 - **Interface** — pin bundle + clocking blocks + modports (in the reusable UVC).
 - **Reusable UVC** (`vip/<bus>/sv/`) — `seq_item` (with `rand` fields + `constraint`s), `driver`,
   `monitor`, `sequencer`, config-driven `agent` (active/passive, coverage on/off), `coverage`, and the
@@ -86,6 +92,16 @@ line or a coverage hole points straight at the failing policy:
 | Reserved-offset → PSLVERR, PRDATA=0 | `<ip>_reg_reserved_vseq` | `<ip>_reg_reserved_test` | every aligned word in `[0, 2^addr_width)` no register occupies |
 | Unaligned → PSLVERR | `<ip>_reg_unaligned_vseq` | `<ip>_reg_unaligned_test` | a valid base + {1,2,3} |
 | W1C / special fields | `<ip>_reg_<field>_vseq` | per RDL `onwrite`/`hwset` | directed |
+| **Register-bit toggle** (every field bit rise + fall) | `<ip>_reg_toggle_vseq` | `<ip>_reg_toggle_test` | bit-bash writable bits; pulse `singlepulse` fields; drive every hw-set RO bit both ways while reading it; measured by `reg_bit_toggle_cov` |
+
+**Register-bit toggle coverage is part of every env.** xsim cannot measure a PeakRDL register block's
+code toggle (nested-struct flops, unexcludable `automatic` temporaries), so the env instantiates the
+reusable `reg_bit_toggle_cov` (`vip/common/sv/reg_bit_toggle_cov.svh`, `include`d in the test package)
+when coverage is on, fills `pulse_suffixes` from the generated `<ip>_reg_toggle_cfg.svh`
+(`env/.venv/bin/python3 flow/scripts/gen_reg_toggle_cfg.py ips/<ip>` — the RDL's `singlepulse`
+fields), calls `attach(ral)` in `connect_phase` and `handle_reset()` from the env's reset hook. It hooks
+every field's `post_predict`, so it credits only what the DUT returned on the bus (plus the accepted
+write of 1 for a singlepulse field). The test's vseq also runs inside `<ip>_full_test`.
 
 Rules that keep this generic:
 - **Targets are DERIVED FROM THE RAL at runtime** — query `get_registers`, `get_address`,

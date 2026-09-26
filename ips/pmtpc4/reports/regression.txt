@@ -1,4 +1,4 @@
-# pmtpc4 regression — 40/40 runs passed
+# pmtpc4 regression — 41/41 runs passed
 seed=1 test=pmtpc4_apb_b2b_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
 seed=1 test=pmtpc4_async_reset_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
 seed=1 test=pmtpc4_channel_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
@@ -31,6 +31,7 @@ seed=1 test=pmtpc4_reg_reserved_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0
 seed=1 test=pmtpc4_reg_reset_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
 seed=1 test=pmtpc4_reg_ro_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
 seed=1 test=pmtpc4_reg_rw_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
+seed=1 test=pmtpc4_reg_toggle_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
 seed=1 test=pmtpc4_reg_unaligned_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
 seed=1 test=pmtpc4_reg_wo_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
 seed=1 test=pmtpc4_sanity_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
@@ -39,3 +40,4 @@ seed=1 test=pmtpc4_selfclear_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 sc
 seed=1 test=pmtpc4_soft_reset_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
 seed=1 test=pmtpc4_toggle_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
 seed=1 test=pmtpc4_wdata_upper_bits_test ok=True uvm_error=0 uvm_fatal=0 sva_fails=0 scb_errors=0 raw_errors=0
+# toggle-build seed=1 test=pmtpc4_full_test ok=True identical_to_normal_run=True scb_checks=9041/9041 reg_bit_toggle=(486, 486)/(486, 486)

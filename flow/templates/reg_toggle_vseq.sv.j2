@@ -1,0 +1,96 @@
+// TEMPLATE (mechanical + AGENT) — seq/{{ ip }}_reg_toggle_vseq.sv. Register-block toggle closure:
+// drive every bit of every RAL field through a 0->1 and a 1->0 transition that the DUT's own bus
+// read-back shows, so reg_bit_toggle_cov (vip/common/sv/reg_bit_toggle_cov.svh) records both
+// directions. This is the measurable substitute for the generated register block's code toggle,
+// which xsim cannot instrument. Runs as {{ ip }}_reg_toggle_test and inside {{ ip }}_full_test.
+//
+// Sections 1-3 are generic (RAL-driven, no hand-listed names). Section 4 is the only part that
+// needs design knowledge: bits the HARDWARE sets (sw=r hw=w fields, hwset/hwclr, counters,
+// status) can only toggle if the design is made to drive them both ways while they are read.
+// Close any remaining holes listed by reg_bit_toggle_cov's report ("uncovered bit-direction")
+// by extending section 4 -- never by sampling the covergroup from the sequence.
+class {{ ip }}_reg_toggle_vseq extends {{ ip }}_base_vseq;
+    `uvm_object_utils({{ ip }}_reg_toggle_vseq)
+    function new(string name = "{{ ip }}_reg_toggle_vseq"); super.new(name); endfunction
+
+    task body();
+        // ---- 1. software-writable bits: RAL bit-bash (each writable bit written 1 then 0 and
+        //         read back; {{ ip }}_reg_rw_vseq excludes fully-RO registers) ----
+        begin
+            {{ ip }}_reg_rw_vseq bb = {{ ip }}_reg_rw_vseq::type_id::create("bb");
+            bb.start(p_sequencer, this);
+        end
+        // ---- 2. singlepulse fields (from the RDL, via <ip>_reg_toggle_cfg.svh): write 1 (held
+        //         for one clock), read back 0, restore ----
+        pulse_fields();
+        // ---- 2b. software-writable fields the hardware can also change (RAL `volatile` RW,
+        //          e.g. an enable with hwclr): bit-bash skips these, so write all-ones, read,
+        //          write zero, read ----
+        volatile_rw_fields();
+        // ---- 3. one read of every readable register (observes the current state) ----
+        read_all();
+        // ---- 4. hardware-set bits (sw=r hw=w fields, hwset/W1C interrupt bits, counters, status) ----
+        // {{ '{{' }} AGENT: make the design drive each hardware-set field both ways and read it
+        //   back in between: e.g. run counters over a full range (poll the count register at a
+        //   prime interval over >= 2 periods), raise and W1C-clear every interrupt/status bit,
+        //   enable/disable to move BUSY/READY-style status. Every such field in the RAL needs
+        //   both a read showing 1 and a later read showing 0. reg_bit_toggle_cov's report lists
+        //   the remaining holes per field. {{ '}}' }}
+        read_all();
+    endtask
+
+    // RW fields the RAL marks volatile (hardware can change them too) and that are not
+    // singlepulse: write all-ones, read, write zero, read; restore the register afterwards
+    task volatile_rw_fields();
+        string        pulse[$];
+        uvm_reg_field fs[$];
+        uvm_reg_data_t v;
+        {{ ip }}_reg_pulse_fields(pulse);
+        p_sequencer.ral.get_fields(fs);
+        foreach (fs[i]) begin
+            bit is_pulse = 0;
+            foreach (pulse[j]) if (ends_with(fs[i].get_full_name(), {".", pulse[j]})) is_pulse = 1;
+            if (!is_pulse && fs[i].get_access() == "RW" && fs[i].is_volatile()) begin
+                uvm_reg        r   = fs[i].get_parent();
+                uvm_reg_data_t cur = r.get_mirrored_value();
+                uvm_reg_data_t one = ((uvm_reg_data_t'(1) << fs[i].get_n_bits()) - 1) << fs[i].get_lsb_pos();
+                reg_wr(r, cur | one);  reg_rd(r, v);
+                reg_wr(r, cur & ~one); reg_rd(r, v);
+                reg_wr(r, cur);
+            end
+        end
+    endtask
+
+    // write 1 to every singlepulse field (other fields keep their mirrored value), read back
+    task pulse_fields();
+        string        pulse[$];
+        uvm_reg_field fs[$];
+        uvm_reg_data_t v;
+        {{ ip }}_reg_pulse_fields(pulse);
+        p_sequencer.ral.get_fields(fs);
+        foreach (fs[i])
+            foreach (pulse[j])
+                if (ends_with(fs[i].get_full_name(), {".", pulse[j]})) begin
+                    uvm_reg        r   = fs[i].get_parent();
+                    uvm_reg_data_t cur = r.get_mirrored_value();
+                    uvm_reg_data_t one = ((uvm_reg_data_t'(1) << fs[i].get_n_bits()) - 1) << fs[i].get_lsb_pos();
+                    reg_wr(r, cur | one);
+                    reg_rd(r, v);
+                    reg_wr(r, cur & ~one);
+                end
+    endtask
+
+    // read every register that has at least one readable field
+    task read_all();
+        uvm_reg        regs[$];
+        uvm_reg_data_t v;
+        p_sequencer.ral.get_registers(regs);
+        foreach (regs[i])
+            if (!all_fields_access(regs[i], "WO")) reg_rd(regs[i], v);
+    endtask
+
+    function bit ends_with(string s, string suf);
+        if (suf.len() > s.len()) return 0;
+        return s.substr(s.len() - suf.len(), s.len() - 1) == suf;
+    endfunction
+endclass

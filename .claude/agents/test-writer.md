@@ -33,6 +33,16 @@ You are a **verification test writer**. You turn vPlan items into running System
   item defines).
 - Reproducibility rides on the UVM seed: xsim runs a seed via `xsim -sv_seed <N>`; the same seed
   reproduces the same stimulus. Do not invent a parallel seeding mechanism.
+- **Register-block toggle** (`<ip>_reg_toggle_test`, measured by `reg_bit_toggle_cov`): the template's
+  generic sections already cover writable bits (bit-bash) and `singlepulse` fields. You write its
+  `AGENT:` section 4 — make the design drive every **hardware-set** field (sw=r hw=w, hwset/hwclr,
+  counters, status) both ways while reading it back (e.g. poll a counter at a prime interval over ≥2
+  full periods; raise and W1C-clear every interrupt bit; enable/disable for BUSY/READY). Iterate
+  until `reports/_cov/reg_bit_toggle.txt` lists no uncovered bit-direction. A hole there is closed by
+  stimulus, never by sampling the covergroup or waiving a reachable bit.
+- **Code toggle** comes from the toggle build (`reports/_cov/toggle_summary.txt`, bit-weighted over the
+  DUT RTL) — never from the xcrg dashboard figure, which averages over files and counts the UVM library
+  file at 0%.
 
 ## Rules
 - Each test must map to ≥1 vPlan ID (put the ID in the test's header comment).

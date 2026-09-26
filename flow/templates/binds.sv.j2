@@ -1,0 +1,17 @@
+// TEMPLATE (mechanical layer) — tb/{{ ip }}_binds.sv. Every white-box SVA / coverage bind for
+// {{ ip }}, in its OWN top-level module (listed in filelist.f after tb/{{ ip }}_tb_top.sv).
+//
+// Why a separate top (do not move these back into {{ ip }}_tb_top): on Vivado xsim a DUT net that
+// a bound checker observes LOSES its code-toggle coverage. xsim_flow.sh elaborates this top in
+// the normal snapshot (<ip>_sim: assertions, functional coverage, statement/branch/condition)
+// and leaves it out of the code-toggle snapshot (<ip>_tcov); run_regression.py checks that both
+// runs executed identically and refuses a toggle build whose tb top still contains a bind.
+// Connections resolve in the target module's scope (standard `bind` semantics).
+//
+// BAKED-IN xsim GOTCHA: connect checker inputs to the *registered* RTL signal, never to a
+// combinational output alias (xsim samples a continuous-assign net as X in the preponed region),
+// e.g. the FSM checker's state input -> the internal `state` reg, not `state_o`.
+module {{ ip }}_binds;
+    // {{ '{{' }} AGENT: one `bind <dut_module> <checker_module> <inst_name> ( .port(signal), ... );`
+    //   per white-box checker / bound covergroup module in sva/. {{ '}}' }}
+endmodule

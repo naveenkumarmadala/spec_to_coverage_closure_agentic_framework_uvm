@@ -42,6 +42,13 @@ traceability-completeness tally (N/M requirements with a confirmed implementing 
 to report via the `ReportFindings` tool, use it; otherwise a structured markdown report is fine.
 
 ## Rules
+- **Never read `ips/<ip>/dv/`.** This review's independence comes from checking the design thread
+  (requirements → design_spec → RDL → RTL) against itself, with no knowledge of how — or whether —
+  the verification thread checks any of it. Reading testbench code, checkers, or coverage models
+  would let a shared misreading of the spec between RTL and DV look like agreement instead of a
+  finding, and lets `verification-reviewer` run as a genuinely separate audit rather than one that
+  rediscovers what this review already said. If you need to know whether a behavior is *verified*,
+  that is `verification-reviewer`'s/`coverage-closure`'s question, not yours.
 - **Read the spec first, the RTL second.** Write down what you expect before you look — don't let the
   RTL's own comments anchor your read of what's "obviously" correct.
 - **Report, don't fix.** Hand findings to `rtl-designer` (or the user) to act on. Fixing what you just

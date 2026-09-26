@@ -152,7 +152,9 @@ formula — so the coverage model was complicit, not just the assertion.
   number, which is the opposite failure but just as invisible.** xsim's `-ccExclusionFile` fails
   silently and completely: a single `\r` (Windows CRLF) or a `#` comment line corrupts xcrg's in-place
   rewrite and it drops *every* exclusion, un-scoping the report so the UVM library/VIP re-enter the
-  denominator. Checks: (a) `grep -c "not found\|No module name" <cov>/xcrg.log` must be **0**; (b) the
+  denominator. Checks: (a) `grep -c "not found\|No module name" <cov>/xcrg.log` must be **0** for the
+  normal-build reports — for the toggle-build report the only acceptable hits are the bind / dump /
+  SVA-checker modules, which that snapshot deliberately does not elaborate; (b) the
   code-report dashboard's in-scope module list must contain **only DUT modules** (no `uvm_pkg`,
   `apb_pkg`, `*_tb_top`, `*_sva`, `*_pkg`) — if the module count is suspiciously large the exclusions
   didn't take; (c) confirm the file fed to xcrg is pure LF directives with no comments; (d) for each
@@ -161,21 +163,27 @@ formula — so the coverage model was complicit, not just the assertion.
   A DUT coverage number reported off an un-applied exclusion file is not trustworthy regardless of how
   well-justified the waiver list reads.
 - **A waiver can be honored and still be wrong — check for over-broad matching, not just "did it
-  apply."** xsim's `-ccExclusionFile` matches `signal -<name>` by bare name across the *entire* design,
-  not by hierarchical path. If two different modules each declare a signal with the same name (a
-  top-level pass-through wire and the submodule port it feeds is the common case), one directive
-  excludes both — including a genuinely-covered signal in a module the waiver never meant to touch, net
-  *decreasing* the trustworthy score while looking like a normal, honored waiver. Spot-check by
-  re-running `xcrg` on the existing database with and without a sampled waiver line and comparing the
-  score; a directive whose removal makes the score *go up* is a finding.
-- **A whole-module `module -<name>`/`instance -<path>` DUT exclusion is a different, more consequential
-  category than a `signal -` waiver and deserves more scrutiny, not less.** It should only apply to a
-  module xcrg reports literally zero data for (its own report says something like "No Toggles in
-  Module"), independently corroborated by a different coverage metric on the same database — not to a
-  module that IS instrumented but merely scores low (that's a real gap, belongs in the closure loop).
-  Confirm the before/after was actually measured for all affected metrics (excluding a module changes
-  statement/branch/condition too, not just the metric it was aimed at), and confirm the waiver doc
-  labels it distinctly from ordinary signal-level waivers rather than folding it into the same table.
+  apply."** A *bare* `signal -<name>` matches that name across the entire design, so if two modules
+  declare the same name (a top-level pass-through and the submodule port it feeds) it excludes both,
+  possibly a genuinely-covered one. Waivers should use the hierarchical dot path
+  (`signal -<tb_top>.dut.<inst>.<sig>`, which works on xsim 2025.1). Spot-check by re-running `xcrg` on
+  the existing database with and without a sampled waiver line; a line whose removal makes the score
+  *go up* is a finding.
+- **Check the toggle number was measured on an uncorrupted build before auditing any toggle waiver.**
+  On xsim, `$dumpvars` merely present in the design (even gated, never executed) and `bind`-ed
+  white-box checkers both make DUT nets lose toggle data. Confirm: no `$dumpvars` in `tb_top` (the dump
+  is its own top, `tb/<ip>_dump.sv`); binds live in a separate top (`tb/<ip>_binds.sv`); code toggle
+  comes from `reports/_cov/toggle_report/` (the `<ip>_tcov` build without either top); and
+  `reports/regression.txt` records the toggle build as
+  `identical_to_normal_run=True`. Any toggle waiver justified as "tool artifact / alias blind spot /
+  No Toggles in Module" should be re-measured on that build — the earlier ones all turned out to be
+  caused by the dump and the binds, not the tool.
+- **A whole-module toggle exclusion is only acceptable with a stated substitute measurement.** The
+  sanctioned case is a generated register block (xsim can't instrument its nested-struct flops or its
+  `automatic` temporaries), excluded from the *toggle* report only and measured instead by
+  `reg_bit_toggle_cov`. Confirm it is absent from the stmt/branch/cond exclusions, that
+  `reports/_cov/reg_bit_toggle.txt` shows the substitute metric's result and holes, and that the waiver
+  doc labels it distinctly from signal-level waivers.
 
 ### 7. Regression hygiene
 - Confirm the environment actually runs on xsim (compile + elaborate + simulate), not just that files

@@ -56,16 +56,31 @@ def main():
     ft = dash(reports, "functional_report")
     fm = re.search(r"Coverage Summary Score Inst Score ([0-9.]+)", ft) if ft else None
     func = f"{float(fm.group(1)):.1f}%" if fm else "not run"
+    pat = (r"Statement Coverage Score Branch Coverage Score Condition Coverage Score "
+           r"Toggle Coverage Score" + r"\s+([0-9.]+)" * 7)
     ct = dash(reports, "code_report")
-    cm = re.search(r"Statement Coverage Score Branch Coverage Score Condition Coverage Score "
-                   r"Toggle Coverage Score" + r"\s+([0-9.]+)" * 7, ct) if ct else None
+    cm = re.search(pat, ct) if ct else None
+    # toggle: bit-weighted DUT summary from the toggle build (no bind/dump top). The xcrg
+    # dashboard's toggle figure is a per-file average that always includes the UVM library
+    # file at 0%, so it is not a DUT metric.
+    ts = reports / "_cov" / "toggle_summary.txt"
+    tm = re.search(r"bits_covered=(\d+) bits_total=(\d+) pct=([\d.]+) net_of_documented=([\d.]+)",
+                   ts.read_text()) if ts.exists() else None
+    tog = (f"{float(tm.group(3)):.1f}% ({tm.group(1)}/{tm.group(2)} bits; "
+           f"{float(tm.group(4)):.1f}% net of documented constant nets)" if tm else
+           (f"{float(cm.group(7)):.1f}% (xcrg dashboard — not reliable)" if cm else "not run"))
     code = (f"stmt {float(cm.group(4)):.1f}% / branch {float(cm.group(5)):.1f}% / "
-            f"cond {float(cm.group(6)):.1f}% / toggle {float(cm.group(7)):.1f}%") if cm else "not run"
+            f"cond {float(cm.group(6)):.1f}% / toggle {tog}") if cm else "not run"
+    rbt_f = reports / "_cov" / "reg_bit_toggle.txt"
+    rbm = re.search(r"covered=(\d+) total=(\d+) pct=([\d.]+)", rbt_f.read_text()) if rbt_f.exists() else None
+    rbt = (f"{float(rbm.group(3)):.1f}% ({rbm.group(1)}/{rbm.group(2)} bit-directions, "
+           "every RAL field bit rise+fall as read back from the DUT)") if rbm else "not run"
 
     L = [f"# {ip.upper()} — Coverage Summary (generated)", "",
          f"- **Seeded regression:** {regression_line(reports)}",
          f"- **Functional coverage (union):** {func}  (goal {vplan.get('coverage_goal_pct','?')}%)",
-         f"- **DUT code coverage:** {code}", "",
+         f"- **DUT code coverage:** {code}",
+         f"- **Register-bit toggle (RAL-derived):** {rbt}", "",
          "## Per-vPlan item", "",
          "| VP-ID | Method | Requirement(s) | Status |", "|---|---|---|---|"]
     for it in items:

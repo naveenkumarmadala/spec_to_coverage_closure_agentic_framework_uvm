@@ -1,4 +1,4 @@
-// Top-level testbench: DUT + APB IF + reset IF + PWM IF + SVA binds + UVM run_test.
+// Top-level testbench: DUT + APB IF + reset IF + PWM IF + UVM run_test (binds: pmtpc4_binds.sv).
 module pmtpc4_tb_top;
     import uvm_pkg::*;
     import pmtpc4_test_pkg::*;
@@ -40,50 +40,10 @@ module pmtpc4_tb_top;
     apb_fsm_cov u_apb_fsm_cov (
         .pclk(pclk), .presetn(presetn), .psel(apb.psel), .penable(apb.penable));
 
-    // ---- SVA binds (connections resolve in the target module's scope) ----
-    bind pmtpc4 pmtpc4_apb_sva u_apb_sva (
-        .pclk(pclk), .presetn(presetn), .psel(psel), .penable(penable),
-        .pready(pready), .pslverr(pslverr), .pwrite(pwrite), .paddr(paddr));
-    bind pmtpc4 pmtpc4_top_sva u_top_sva (
-        .pclk(pclk), .presetn(presetn), .module_en(module_en),
-        .int_status_val(int_status_val), .int_en_val(int_en_val),
-        .global_ie(global_ie), .global_int_status(global_int_status),
-        .irq(irq), .pwm_out(pwm_out),
-        .ch_state0(ch_state[0]), .ch_state1(ch_state[1]),
-        .ch_state2(ch_state[2]), .ch_state3(ch_state[3]),
-        .psel(psel), .penable(penable),
-        .ch_expiry({ch_expiry[3], ch_expiry[2], ch_expiry[1], ch_expiry[0]}),
-        .cpuif_req(cpuif_req), .cpuif_req_is_wr(cpuif_req_is_wr),
-        .cpuif_addr(cpuif_addr), .cpuif_wr_data(cpuif_wr_data),
-        .soft_reset(soft_rst_pulse),
-        .ch_busy({ch_busy[3], ch_busy[2], ch_busy[1], ch_busy[0]}),
-        .status_busy_val(hwif_in.STATUS.BUSY.next),
-        .status_ready_val(hwif_in.STATUS.READY.next));
-    bind pmtpc4_channel pmtpc4_channel_sva u_ch_sva (
-        .pclk(pclk), .presetn(presetn), .soft_reset(soft_reset), .module_en(module_en),
-        .tick_en(tick_en), .ch_en(ch_en), .ch_mode(ch_mode), .pwm_en(pwm_en),
-        .ch_start(ch_start), .ch_pause(ch_pause),
-        .count(count), .compare(compare), .compare_shadow(compare_shadow), .period(period),
-        // bind the white-box state input to the registered FSM reg `state`, not the
-        // combinational output alias `state_o`: on xsim the preponed sample of a
-        // continuous-assign net (assign state_o = state) reads X every clock even though
-        // its settled value is correct, spuriously firing the valid-state assertion.
-        .state_o(state), .expiry(expiry), .pwm(pwm_q));
-    // VP-PRESC-RATIO: shared-prescaler tick-spacing checker + coverage (bound once,
-    // not per-channel -- this is a property of the ONE shared prescaler).
-    bind pmtpc4 pmtpc4_presc_sva u_presc_sva (
-        .pclk(pclk), .presetn(presetn), .soft_reset(soft_rst_pulse), .module_en(module_en),
-        .prescaler_val(hwif_out.PRESCALER.PRESCALER_VAL.value), .tick_en(tick_en));
-    // VP-PWM-DUTY: independent PWM duty covergroup + companion checkers, predicting from
-    // the `compare`/`period` input PORTS (never from the DUT's own compare_shadow) — that
-    // independence is what catches a `compare_shadow <= '0` mutation that the white-box
-    // a_pwm_rule (above) cannot.
-    bind pmtpc4_channel pmtpc4_pwm_cov u_pwm_cov (
-        .pclk(pclk), .presetn(presetn), .soft_reset(soft_reset), .module_en(module_en),
-        .tick_en(tick_en), .ch_en(ch_en), .ch_mode(ch_mode), .pwm_en(pwm_en),
-        .ch_start(ch_start), .ch_pause(ch_pause),
-        .period(period), .compare(compare), .count(count),
-        .state_o(state), .pwm(pwm_q));
+    // ---- SVA / coverage binds live in tb/pmtpc4_binds.sv (module pmtpc4_binds) ----
+    // Elaborated as a SECOND top in the normal snapshot and deliberately left out of the
+    // code-toggle snapshot: on xsim a bound checker makes the DUT nets it observes lose
+    // their toggle coverage. See the header of pmtpc4_binds.sv.
 
     // Power-on reset: same shape as before (low for 5 pclk edges), now issued through
     // the reset interface so mid-simulation assertions use the identical driver.
@@ -98,8 +58,8 @@ module pmtpc4_tb_top;
         run_test();
     end
 
-    initial begin
-        $dumpfile("pmtpc4.fst");
-        $dumpvars(0, pmtpc4_tb_top);
-    end
+    // Waveform dump lives in tb/pmtpc4_dump.sv (module pmtpc4_dump, +DUMP only), NOT here:
+    // on xsim the mere presence of $dumpvars in the elaborated design stops code-toggle
+    // recording on some DUT nets, even if it never executes. The code-toggle snapshot
+    // leaves that top out entirely.
 endmodule

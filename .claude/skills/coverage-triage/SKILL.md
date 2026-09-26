@@ -77,47 +77,54 @@ IP-specific, the pattern isn't):
   moves toggle negligibly — the residual is per-bit structural. Prove it (add the stimulus, measure),
   then waive/document.
 
-### Toggle "0%" isn't always a real hole — cross-check before you believe it, verify before you waive it
+### Toggle measurement integrity on xsim — fix the MEASUREMENT before you triage a single hole
 
-xsim's toggle instrumentation has real, reproducible blind spots that report 0% on signals that are
-*provably* active. Don't take a 0/0 toggle report at face value — cross-check it against a **different**
-coverage type from the **same** database before concluding anything:
+Measured 2026-09-26 (Vivado 2025.1) by isolating the real DUT from the testbench one ingredient at a
+time. Two testbench constructs silently corrupt xsim's code-toggle recording, and they — not "xsim
+alias-wire blind spots" — produced most of the 0% toggle signals an earlier pass waived as tool
+artifacts (every one of those waivers was wrong and has been removed):
 
-- **`automatic` procedural locals never toggle-track**, regardless of stimulus. Every PeakRDL
-  passthrough-cpuif regblock declares `automatic logic next_c` / `automatic logic load_next_c` per
-  field inside an `always_comb` — these are recomputed fresh each evaluation, not persistent storage.
-  100% generic and predictable from the `--cpuif` template: pre-seed `signal -next_c` /
-  `signal -load_next_c` for every IP (see `register-designer`'s rules) rather than rediscovering this.
-  The same applies to any other hand-authored `automatic` scratch variable in a mux/decoder.
-- **Continuous-assign (`wire = expr`) alias signals sometimes don't get an independent toggle
-  identity**, even when the expression is proven to vary. Signature: the alias reads 0/0 while a
-  *different* coverage type on the exact same signal/database proves activity — e.g. a `wire start_trig`
-  gating `if (start_trig)` shows the `if`'s branch-coverage TRUE count is nonzero, or a `wire cpuif_addr`
-  aliasing an address port shows the functional address-coverpoint hit every bin. That contradiction
-  *is* the confirmation it's a tool artifact, not something to take on faith — find the corroborating
-  evidence before waiving.
-- **A whole module can report "No Toggles in Module"** in xcrg's raw per-module toggle section — a
-  stronger, cleaner signal of the same instrumentation gap than a per-signal 0%, seen on a small
-  counter module whose `always_ff` increment is independently proven to execute hundreds of times via
-  statement coverage. Don't mistake "no toggles found" for "nothing happened here."
-  **Resolution, once independently corroborated (not before):** `module -<name>` (or the coarser
-  `instance -<path>`) in the exclusion sidecar removes the whole module from the toggle denominator.
-  This is a *categorically different* decision from a `signal -` waiver and should be labeled as such
-  in the waiver doc, not folded into the same table: a signal waiver says "proven covered/dead, here's
-  why"; a module exclusion for a zero-instrumentation module says "the tool produced no data at all, so
-  we are declining to have this module's toggle metric count against the aggregate." **Measure the
-  real cost before applying it** — excluding a module removes it from ALL FOUR metrics, not just
-  toggle, and if that module happened to score 100% on statement/branch/condition (small modules often
-  do), the aggregate for those metrics will move down slightly, not up. Report the actual before/after
-  numbers for all four, not just the toggle win.
-- **When a signal is a real register (not automatic, not an alias) and no other coverage type
-  corroborates activity, don't assume — verify.** Write the targeted stimulus, run it, and if the
-  toggle number still doesn't move, add a **temporary** `$display` at the RTL assignment site (revert
-  it immediately after) to directly observe whether the value the register is being loaded with
-  actually varies. If it does vary and toggle still reads 0/0, that's now an *empirically proven* tool
-  artifact — safe to waive with the trace excerpt as evidence. If the value never actually varies, it's
-  a genuine stimulus gap — fix the vseq, not the exclusion file. Don't skip straight to "probably a
-  tool artifact" for a real register just because other signals nearby turned out to be one.
+- **`$dumpvars` merely being present in the elaborated design** stops toggle recording on some DUT nets
+  (a counter flop, single-use `wire x = expr` nets) — even `$dumpvars(1, top)`, and even inside an
+  `if ($test$plusargs(...))` that never executes (gating it is NOT enough; measured). It is what
+  produced a module's "No Toggles in Module". **Rule: the dump is its own top module
+  (`tb/<ip>_dump.sv`, active with `+DUMP`) that the code-toggle snapshot does not elaborate.**
+- **A `bind`-ed white-box checker makes every DUT net it observes lose its toggle data** (the toggles
+  are not re-attributed to the checker; they are just gone). Wrapping the port connection as `{x}` does
+  not help. **Rule: binds live in their own top module (`tb/<ip>_binds.sv`); measure toggle on a second
+  snapshot elaborated without that top or the dump top** (`xsim_flow.sh --toggle`, `<ip>_tcov`),
+  running the same test and seed. The binds are read-only, and `run_regression.py` *verifies* identical execution (same
+  pass status, scoreboard check count and register-bit toggle totals) before reporting that toggle.
+  Assertions, functional coverage and statement/branch/condition keep coming from the normal build.
+- Ruled out as causes (don't re-investigate): `wire x = expr` style, port-driven nets, unpacked arrays,
+  parameter overrides, `-relax`, `-L uvm`/importing `uvm_pkg`, reusing one `xsim.cov` across tests,
+  `-debug typical|all`, `-O0`.
+
+**Genuine xsim toggle limitations that remain** (all found in the PeakRDL register block, and nothing
+documented for 2026.1 changes them):
+- **`automatic` block locals** (`next_c`, `load_next_c`, `is_valid_*`, `readback_data_var`) are listed as
+  toggle points but never updated, and **no** exclusion form (bare, wildcard, hierarchical) removes all
+  of their copies.
+- **Nested-struct signals** (PeakRDL `field_storage`, `hwif_out`) are not instrumented for toggle at
+  all, despite the docs' "non-dynamic struct members" claim — the register flops are invisible.
+- **No bit-range exclusion** (`sig[31:16]` → "not declared").
+- **Duplicate listings**: a net connected into two instance ports (e.g. via `{a, b}` concatenations)
+  can be listed twice, and every exclusion form removes only one copy. Report the remaining copy as a
+  documented constant (the DUT toggle summary does this for any sidecar-listed signal).
+- **The xcrg dashboard's toggle aggregate is not a DUT metric** — it averages over report files and
+  always counts the UVM library's file at 0%. Use `reports/_cov/toggle_summary.txt` (bit-weighted).
+
+**So a generated register block's toggle cannot be measured by xsim code coverage.** Exclude that module
+from the *toggle* report only (a `module -` line in the toggle sidecar; `gen_exclusions.py` keeps it out of
+the stmt/branch/cond report) and measure its register storage with **`reg_bit_toggle_cov`**
+(`vip/common/sv/reg_bit_toggle_cov.svh`): every bit of every RAL field, rise and fall, as read back from
+the DUT on the bus (functional coverage, reported reliably), with a closure test that bit-bashes the
+writable bits, pulses the `singlepulse` ones and drives every hardware-set read-only bit both ways.
+
+- **Before waiving a real register as "tool artifact", verify**: targeted stimulus first; if it still
+  reads 0/0 in the toggle build (no dump, no binds), add a **temporary** `$display` at its assignment
+  (revert after) to see whether the value actually varies. Varies → proven tool gap, waive with the
+  trace as evidence. Doesn't vary → stimulus gap, fix the vseq.
 
 ## Exclusion-file mechanics (xsim `-ccExclusionFile` — hard-won, bake in)
 
@@ -125,18 +132,13 @@ coverage type from the **same** database before concluding anything:
   exclusion.** So unreachable *statements/branches* (the FSM default, the self-clear else-legs) cannot
   be tool-excluded; they stay in the score and are accounted for in the **waiver document**
   (`reports/coverage_waivers.md`), which is the entire residual of the stmt/branch numbers.
-- **`signal -<name>` matches by bare name across the ENTIRE design, not by hierarchical path — it does
-  NOT "preserve module scoping."** If two different modules each declare a signal with the same name
-  (a top-level pass-through wire and the submodule's own same-named port it feeds, for instance), one
-  `signal -<name>` directive silently excludes BOTH — including a genuinely-covered signal in a module
-  you never intended to touch. This is a *different* failure mode from "the waiver wasn't honored"
-  (below): here the waiver IS honored, just too broadly, and can make the aggregate score **worse**
-  than not waiving at all if the collateral signal was a real, positive contributor. Confirmed
-  empirically: adding one such directive dropped a DUT toggle score by 0.6pp. **Before trusting any
-  new `signal -` waiver, measure the aggregate score with and without it** (re-run `xcrg` on the
-  existing database with the candidate line added, compare, then decide) — don't assume a
-  correctly-named, correctly-justified directive is net-positive just because the specific bits you
-  intended to hide are gone.
+- **Name `signal -` waivers by hierarchical DOT path**: `signal -<tb_top>.dut.<inst>.<sig>` excludes
+  exactly that one signal (tested on 2025.1; the slash form `/tb/dut/sig` is NOT accepted). A **bare**
+  `signal -<name>` matches that name across the entire design — if another module has a same-named
+  signal (a top-level pass-through and the submodule port it feeds), both are excluded, which can drop
+  real coverage and move the score *down* (measured −0.6pp once). Wildcards with an instance
+  (`signal -*u_inst*name`) also work. **Measure every new waiver**: re-run `xcrg` on the existing
+  database with and without the line and compare.
 - **Confirm every waiver actually helped, in the other direction too — don't assume a
   correctly-formatted, correctly-justified `signal -` waiver moved the score, even for a pattern
   that recurs dozens of times.** This is not a rare edge case: a session that added 12 `signal -`
@@ -159,9 +161,10 @@ coverage type from the **same** database before concluding anything:
   in the sidecar / README, never in the file fed to xcrg. Symptom to check: dashboard module count
   jumps (e.g. 8→22) and `grep "not found" xcrg.log` is non-zero.
 - **Per-signal waivers are IP-specific → maintained sidecar.** Put them in
-  `ips/<ip>/dv/<ip>_toggle_waivers.txt` (clean `signal -<name>` lines + `#` justifications);
-  `gen_exclusions.py` appends the directive lines (stripping comments) after the auto DUT-scoping, so
-  regenerating never loses them. Human rationale for every waiver (functional + stmt/branch + toggle)
+  `ips/<ip>/dv/<ip>_toggle_waivers.txt` (clean directive lines + `#` justifications). `gen_exclusions.py`
+  writes two files: `<ip>_cov_exclusions.txt` (DUT scoping only — stmt/branch/cond report) and
+  `<ip>_toggle_exclusions.txt` (scoping + the sidecar — code-toggle report), so a whole-module toggle
+  exclusion never costs that module its statement/branch/condition data. Regenerating never loses them. Human rationale for every waiver (functional + stmt/branch + toggle)
   goes in **`reports/coverage_waivers.md`** — produce this per IP; it is the signed-off artifact.
   **Edit the sidecar, never the generated `<ip>_cov_exclusions.txt` directly** — it's regenerated by
   `gen_exclusions.py` and a hand-edit there is silently lost the next time anyone re-runs it. After
